@@ -15,7 +15,3 @@ Most of the code changes, additions and modifications refer to joint consensus a
 [Raft thesis]: https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf
 [Etcd original repository]: https://github.com/etcd-io/etcd
 [MSc thesis of Dimitrios Valekardas]: http://olympias.lib.uoi.gr/jspui/handle/123456789/29259
-
-## Contact
-
-- Personal email: [etcd-dev](https://groups.google.com/forum/?hl=en#!forum/etcd-dev)

@@ -10,7 +10,7 @@ Most of the code changes, additions and modifications refer to joint consensus a
 
 # Useful links:
 
-[Raft]: https://raft.github.io/
+[Raft]: (https://raft.github.io/)
 [Raft paper]: https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf
 [Raft thesis]: https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf
 [Etcd original repository]: https://github.com/etcd-io/etcd

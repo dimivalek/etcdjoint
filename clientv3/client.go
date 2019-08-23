@@ -148,6 +148,9 @@ func (c *Client) Sync(ctx context.Context) error {
 	for _, m := range mresp.Members {
 		eps = append(eps, m.ClientURLs...)
 	}
+	for _, l := range mresp.Learners {
+		eps = append(eps, l.ClientURLs...)
+	}
 	c.SetEndpoints(eps...)
 	return nil
 }

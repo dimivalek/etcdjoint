@@ -21,7 +21,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
-
+	"fmt"
 	"github.com/coreos/etcd/etcdserver"
 	"github.com/coreos/etcd/etcdserver/api/v3client"
 	"github.com/coreos/etcd/etcdserver/api/v3election"
@@ -77,6 +77,7 @@ func (sctx *serveCtx) serve(
 	s *etcdserver.EtcdServer,
 	tlsinfo *transport.TLSInfo,
 	handler http.Handler,
+	
 	errHandler func(error),
 	gopts ...grpc.ServerOption) (err error) {
 	logger := defaultLog.New(ioutil.Discard, "etcdhttp", 0)
@@ -112,9 +113,10 @@ func (sctx *serveCtx) serve(
 		}
 
 		httpmux := sctx.createMux(gwmux, handler)
-
+		
 		srvhttp := &http.Server{
 			Handler:  wrapMux(httpmux),
+			
 			ErrorLog: logger, // do not log user error
 		}
 		httpl := m.Match(cmux.HTTP1())
@@ -135,8 +137,9 @@ func (sctx *serveCtx) serve(
 		if sctx.serviceRegister != nil {
 			sctx.serviceRegister(gs)
 		}
+		fmt.Print("embed/serve.go grpcHandlerFunc \n")
 		handler = grpcHandlerFunc(gs, handler)
-
+		
 		dtls := tlscfg.Clone()
 		// trust local server
 		dtls.InsecureSkipVerify = true
@@ -155,9 +158,10 @@ func (sctx *serveCtx) serve(
 		}
 		// TODO: add debug flag; enable logging when debug flag is set
 		httpmux := sctx.createMux(gwmux, handler)
-
+		
 		srv := &http.Server{
 			Handler:   wrapMux(httpmux),
+			
 			TLSConfig: tlscfg,
 			ErrorLog:  logger, // do not log user error
 		}
@@ -174,19 +178,24 @@ func (sctx *serveCtx) serve(
 // grpcHandlerFunc returns an http.Handler that delegates to grpcServer on incoming gRPC
 // connections or otherHandler otherwise. Given in gRPC docs.
 func grpcHandlerFunc(grpcServer *grpc.Server, otherHandler http.Handler) http.Handler {
+	fmt.Print("embed/serve.go grpcHandlerFunc \n")
 	if otherHandler == nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fmt.Print("embed/serve.go ServeHTTP 1 \n")
 			grpcServer.ServeHTTP(w, r)
 		})
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
+			fmt.Print("embed/serve.go ServeHTTP 2 \n")
 			grpcServer.ServeHTTP(w, r)
 		} else {
+			//fmt.Print("embed/serve.go ServeHTTP 3 \n")
 			otherHandler.ServeHTTP(w, r)
 		}
 	})
 }
+
 
 type registerHandlerFunc func(context.Context, *gw.ServeMux, *grpc.ClientConn) error
 
@@ -260,6 +269,7 @@ func (m *v3alphaMutator) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if req != nil && req.URL != nil && strings.HasPrefix(req.URL.Path, "/v3alpha/") {
 		req.URL.Path = strings.Replace(req.URL.Path, "/v3alpha/", "/v3beta/", 1)
 	}
+	//fmt.Print("embed/serve.go ServeHTTP 4 \n")
 	m.mux.ServeHTTP(rw, req)
 }
 

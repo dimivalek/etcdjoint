@@ -50,9 +50,9 @@ func IsLocalMsg(msgt pb.MessageType) bool {
 	return msgt == pb.MsgHup || msgt == pb.MsgBeat || msgt == pb.MsgUnreachable ||
 		msgt == pb.MsgSnapStatus || msgt == pb.MsgCheckQuorum
 }
-
+////////////////////////////////////////////
 func IsResponseMsg(msgt pb.MessageType) bool {
-	return msgt == pb.MsgAppResp || msgt == pb.MsgVoteResp || msgt == pb.MsgHeartbeatResp || msgt == pb.MsgUnreachable || msgt == pb.MsgPreVoteResp
+	return msgt == pb.MsgAppResp || msgt == pb.MsgAppRecResp || msgt == pb.MsgAppNewConfResp|| msgt == pb.MsgVoteResp || msgt == pb.MsgHeartbeatResp || msgt == pb.MsgUnreachable || msgt == pb.MsgPreVoteResp
 }
 
 // voteResponseType maps vote and prevote message types to their corresponding responses.

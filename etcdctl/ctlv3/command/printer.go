@@ -39,9 +39,13 @@ type printer interface {
 	Leases(r v3.LeaseLeasesResponse)
 
 	MemberAdd(v3.MemberAddResponse)
+	LearnerAdd(v3.LearnerAddResponse)
 	MemberRemove(id uint64, r v3.MemberRemoveResponse)
+	LearnerRemove(id uint64, r v3.LearnerRemoveResponse)
 	MemberUpdate(id uint64, r v3.MemberUpdateResponse)
 	MemberList(v3.MemberListResponse)
+	Reconfiguration(v3.ReconfigurationResponse)
+	//LearnerList(v3.LearnerListResponse)
 
 	EndpointStatus([]epStatus)
 	EndpointHashKV([]epHashKV)
@@ -100,9 +104,14 @@ func (p *printerRPC) TimeToLive(r v3.LeaseTimeToLiveResponse, keys bool) { p.p(&
 func (p *printerRPC) Leases(r v3.LeaseLeasesResponse)                    { p.p(&r) }
 
 func (p *printerRPC) MemberAdd(r v3.MemberAddResponse) { p.p((*pb.MemberAddResponse)(&r)) }
+func (p *printerRPC) LearnerAdd(r v3.LearnerAddResponse) { p.p((*pb.LearnerAddResponse)(&r)) }
 func (p *printerRPC) MemberRemove(id uint64, r v3.MemberRemoveResponse) {
 	p.p((*pb.MemberRemoveResponse)(&r))
 }
+func (p *printerRPC) LearnerRemove(id uint64, r v3.LearnerRemoveResponse) {
+	p.p((*pb.LearnerRemoveResponse)(&r))
+}
+func (p *printerRPC) Reconfiguration(r v3.ReconfigurationResponse) { p.p((*pb.ReconfigurationResponse)(&r)) }
 func (p *printerRPC) MemberUpdate(id uint64, r v3.MemberUpdateResponse) {
 	p.p((*pb.MemberUpdateResponse)(&r))
 }
@@ -169,7 +178,7 @@ func makeMemberListTable(r v3.MemberListResponse) (hdr []string, rows [][]string
 			strings.Join(m.ClientURLs, ","),
 		})
 	}
-	return hdr, rows
+	return
 }
 
 func makeEndpointStatusTable(statusList []epStatus) (hdr []string, rows [][]string) {
@@ -185,7 +194,7 @@ func makeEndpointStatusTable(statusList []epStatus) (hdr []string, rows [][]stri
 			fmt.Sprint(status.Resp.RaftIndex),
 		})
 	}
-	return hdr, rows
+	return
 }
 
 func makeEndpointHashKVTable(hashList []epHashKV) (hdr []string, rows [][]string) {
@@ -196,7 +205,7 @@ func makeEndpointHashKVTable(hashList []epHashKV) (hdr []string, rows [][]string
 			fmt.Sprint(h.Resp.Hash),
 		})
 	}
-	return hdr, rows
+	return
 }
 
 func makeDBStatusTable(ds dbstatus) (hdr []string, rows [][]string) {
@@ -207,5 +216,5 @@ func makeDBStatusTable(ds dbstatus) (hdr []string, rows [][]string) {
 		fmt.Sprint(ds.TotalKey),
 		humanize.Bytes(uint64(ds.TotalSize)),
 	})
-	return hdr, rows
+	return
 }

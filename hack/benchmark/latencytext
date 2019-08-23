@@ -1,0 +1,4 @@
+
+Error distribution:
+  [10]	Put http://localhost:12379/v2/keys/foo: dial tcp 127.0.0.1:12379: getsockopt: connection refused
+

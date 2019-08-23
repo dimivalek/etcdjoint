@@ -67,31 +67,45 @@ func init() {
 }
 
 func putFunc(cmd *cobra.Command, args []string) {
+	var elapsed1,elapsed2 time.Duration
+	var st1 time.Time
+	var seconds1, seconds2 float64
+	var checkchannel int
+	//var leftrequests int
+	//start := make(chan struct{})
 	if keySpaceSize <= 0 {
 		fmt.Fprintf(os.Stderr, "expected positive --key-space-size, got (%v)", keySpaceSize)
 		os.Exit(1)
 	}
-
+	req := make(chan v3.Op, totalClients)
 	requests := make(chan v3.Op, totalClients)
+	requests2 := make(chan v3.Op, totalClients)
+	requests3 := make(chan v3.Op, totalClients)
+	requests4 := make(chan v3.Op, totalClients)
+	checkchannel = 0
 	if putRate == 0 {
 		putRate = math.MaxInt32
 	}
 	limit := rate.NewLimiter(rate.Limit(putRate), 1)
-	clients := mustCreateClients(totalClients, totalConns)
+	clients,leaderendpoint := mustCreateClients1(totalClients, totalConns)
 	k, v := make([]byte, keySize), string(mustRandBytes(valSize))
 
 	bar = pb.New(putTotal)
 	bar.Format("Bom !")
 	bar.Start()
-
+	//start := make(chan struct{})
 	r := newReport()
 	for i := range clients {
+		//fmt.Print("leaderendpoint[0]",leaderendpoint[0],"\n")
+		/*if mayRecreateClients(cl,leaderendpoint[0]) == true {
+			clients,leaderendpoint = mustCreateClients1(totalClients-uint(i), totalConns)		
+		}*/
 		wg.Add(1)
 		go func(c *v3.Client) {
 			defer wg.Done()
 			for op := range requests {
+				//leftrequests = requests - i
 				limit.Wait(context.Background())
-
 				st := time.Now()
 				_, err := c.Do(context.Background(), op)
 				r.Results() <- report.Result{Err: err, Start: st, End: time.Now()}
@@ -101,15 +115,82 @@ func putFunc(cmd *cobra.Command, args []string) {
 	}
 
 	go func() {
+		
 		for i := 0; i < putTotal; i++ {
+			st1 = time.Now()
+			elapsed1 = time.Since(st1)
+			seconds1 = elapsed1.Seconds()
 			if seqKeys {
+				//fmt.Print("seqkeys",seqKeys)
 				binary.PutVarint(k, int64(i%keySpaceSize))
 			} else {
+				//fmt.Print("seqkeys",seqKeys)
 				binary.PutVarint(k, int64(rand.Intn(keySpaceSize)))
 			}
-			requests <- v3.OpPut(string(k), v)
+			if checkchannel == 0 {
+				requests <- v3.OpPut(string(k), v)
+			}else if checkchannel == 1 {
+				requests2 <- v3.OpPut(string(k), v)
+			}else if checkchannel == 2 {
+				requests3 <- v3.OpPut(string(k), v)
+			}else if checkchannel == 3 {
+				requests4 <- v3.OpPut(string(k), v)
+			}
+			//req = requests//////////////
+			elapsed2 = time.Since(st1)	
+			seconds2 = elapsed2.Seconds()
+			if seconds2 - seconds1 >= 1.5 {
+				changed := mayRecreateClients(clients[0],leaderendpoint[0])
+				//call function that starts new channel
+				if changed == true {
+					clients,leaderendpoint = mustCreateClients1(totalClients, totalConns)
+					checkchannel = checkchannel +1
+					//checkchannel = true
+					//wg.Wait()
+					if checkchannel == 0 {
+						//requests <- v3.OpPut(string(k), v)
+						req = requests
+					}else if checkchannel == 1 {
+						//requests2 <- v3.OpPut(string(k), v)
+						req = requests2
+						close(requests)
+					}else if checkchannel == 2 {
+						//requests3 <- v3.OpPut(string(k), v)
+						req = requests3
+						close(requests2)
+					}else if checkchannel == 3 {
+						//requests4 <- v3.OpPut(string(k), v)
+						req = requests4
+						close(requests3)
+					}
+					//close(requests)
+					//close(start)
+					for i := range clients {
+						fmt.Print("leaderendpoint[0]",leaderendpoint[0],"\n")
+						/*if mayRecreateClients(cl,leaderendpoint[0]) == true {
+							clients,leaderendpoint = mustCreateClients1(totalClients-uint(i), totalConns)		
+						}*/
+						wg.Add(1)
+						go func(c *v3.Client) {
+							defer wg.Done()
+							for op := range req {
+								limit.Wait(context.Background())
+
+								st := time.Now()
+								_, err := c.Do(context.Background(), op)
+								r.Results() <- report.Result{Err: err, Start: st, End: time.Now()}
+								bar.Increment()
+							}
+						}(clients[i])
+					}
+				}
+			}
+			
 		}
-		close(requests)
+		//if checkchannel == false {
+			//close(requests)
+		//}
+		close(req)
 	}()
 
 	if compactInterval > 0 {
@@ -120,9 +201,9 @@ func putFunc(cmd *cobra.Command, args []string) {
 			}
 		}()
 	}
-
-	rc := r.Run()
+	rc :=  r.Run()
 	wg.Wait()
+	//wg1.Wait()
 	close(r.Results())
 	bar.Finish()
 	fmt.Println(<-rc)

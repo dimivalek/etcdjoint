@@ -39,6 +39,12 @@ etcd_build() {
 	CGO_ENABLED=0 go build $GO_BUILD_FLAGS -installsuffix cgo -ldflags "$GO_LDFLAGS" -o "${out}/etcd" ${REPO_PATH}/cmd/etcd || return
 	# shellcheck disable=SC2086
 	CGO_ENABLED=0 go build $GO_BUILD_FLAGS -installsuffix cgo -ldflags "$GO_LDFLAGS" -o "${out}/etcdctl" ${REPO_PATH}/cmd/etcdctl || return
+	# shellcheck disable=SC2086
+	CGO_ENABLED=0 go build $GO_BUILD_FLAGS -installsuffix cgo -ldflags "$GO_LDFLAGS" -o "${out}/benchmark" ${REPO_PATH}/cmd/benchmark || return
+	# shellcheck disable=SC2086
+	CGO_ENABLED=0 go build $GO_BUILD_FLAGS -installsuffix cgo -ldflags "$GO_LDFLAGS" -o "${out}/dumpdb" ${REPO_PATH}/cmd/etcd-dump-db || return
+	# shellcheck disable=SC2086
+	CGO_ENABLED=0 go build $GO_BUILD_FLAGS -installsuffix cgo -ldflags "$GO_LDFLAGS" -o "${out}/dumplogs" ${REPO_PATH}/cmd/etcd-dump-logs || return
 }
 
 etcd_setup_gopath() {

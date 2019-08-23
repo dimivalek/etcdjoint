@@ -80,6 +80,8 @@ type Progress struct {
 
 	// IsLearner is true if this progress is tracked for a learner.
 	IsLearner bool
+	
+	//HelperID  uint64
 }
 
 func (pr *Progress) resetState(state ProgressStateType) {
@@ -117,6 +119,7 @@ func (pr *Progress) becomeSnapshot(snapshoti uint64) {
 // Otherwise it updates the progress and returns true.
 func (pr *Progress) maybeUpdate(n uint64) bool {
 	var updated bool
+	//fmt.Print("pr.Match and n ",pr.Match ,n,"\n")
 	if pr.Match < n {
 		pr.Match = n
 		updated = true
@@ -125,6 +128,7 @@ func (pr *Progress) maybeUpdate(n uint64) bool {
 	if pr.Next < n+1 {
 		pr.Next = n + 1
 	}
+	//fmt.Print("false if index is outdated ",updated,"\n")
 	return updated
 }
 

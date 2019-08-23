@@ -18,7 +18,7 @@ import (
 	"context"
 	"net/http"
 	"time"
-
+	"fmt"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/etcdserver"
 	"github.com/coreos/etcd/etcdserver/api"
@@ -68,6 +68,24 @@ func (s *v2v3Server) AddMember(ctx context.Context, memb membership.Member) ([]*
 	return v3MembersToMembership(resp.Members), nil
 }
 
+func (s *v2v3Server) AddLearner(ctx context.Context, learn membership.Learner) ([]*membership.Learner, error)  {
+	fmt.Print(" add learner etcdserver/api/v2v3/server.go \n")
+	resp, err := s.c.LearnerAdd(ctx, learn.PeerURLs)
+	if err != nil {
+		return nil, err
+	}
+	return LearnerToMembership(resp.Learners), nil
+}
+
+func (s *v2v3Server) Reconfiguration(ctx context.Context, confids []uint64) ([]uint64, error)  {
+	fmt.Print(" Reconfiguration etcdserver/api/v2v3/server.go \n")
+	resp, err := s.c.Reconfiguration(ctx, confids)
+	if err != nil {
+		return nil, err
+	}
+	return resp.ConfIDs, nil
+}
+
 func (s *v2v3Server) RemoveMember(ctx context.Context, id uint64) ([]*membership.Member, error) {
 	resp, err := s.c.MemberRemove(ctx, id)
 	if err != nil {
@@ -76,6 +94,13 @@ func (s *v2v3Server) RemoveMember(ctx context.Context, id uint64) ([]*membership
 	return v3MembersToMembership(resp.Members), nil
 }
 
+func (s *v2v3Server) RemoveLearner(ctx context.Context, id uint64) ([]*membership.Learner, error) {
+	resp, err := s.c.LearnerRemove(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return LearnerToMembership(resp.Learners), nil
+}
 func (s *v2v3Server) UpdateMember(ctx context.Context, m membership.Member) ([]*membership.Member, error) {
 	resp, err := s.c.MemberUpdate(ctx, uint64(m.ID), m.PeerURLs)
 	if err != nil {
@@ -101,6 +126,39 @@ func v3MembersToMembership(v3membs []*pb.Member) []*membership.Member {
 	return membs
 }
 
+/*func LearnerToMembership(v3learner *pb.Learner) *membership.Learner {
+	//learner := make(membership.Learner,1)
+	learner := &membership.Learner{
+		ID: types.ID(v3learner.ID),
+		RaftAttributes: membership.RaftAttributes{
+			PeerURLs: v3learner.PeerURLs,
+			},
+			Attributes: membership.Attributes{
+				Name: v3learner.Name,
+				ClientURLs: v3learner.ClientURLs,
+			},
+	}
+	return learner
+
+}*/
+func LearnerToMembership(v3learners []*pb.Learner) []*membership.Learner {
+	//learner := make(membership.Learner,1)
+	learns := make([]*membership.Learner, len(v3learners))
+	for i, l := range v3learners {
+		learns[i] = &membership.Learner{
+			ID: types.ID(l.ID),
+			RaftAttributes: membership.RaftAttributes{
+				PeerURLs: l.PeerURLs,
+			},
+			Attributes: membership.Attributes{
+				Name:       l.Name,
+				ClientURLs: l.ClientURLs,
+			},
+		}
+	}
+	return learns
+
+}
 func (s *v2v3Server) ClusterVersion() *semver.Version { return s.Version() }
 func (s *v2v3Server) Cluster() api.Cluster            { return s }
 func (s *v2v3Server) Alarms() []*pb.AlarmMember       { return nil }

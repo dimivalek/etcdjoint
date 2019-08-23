@@ -56,6 +56,8 @@
 		MemberAddResponse
 		MemberRemoveRequest
 		MemberRemoveResponse
+		LearnerRemoveRequest
+		LearnerRemoveResponse
 		MemberUpdateRequest
 		MemberUpdateResponse
 		MemberListRequest
@@ -114,6 +116,7 @@ import (
 	_ "github.com/gogo/protobuf/gogoproto"
 
 	io "io"
+
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -126,7 +129,6 @@ var _ = math.Inf
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
-
 type Request struct {
 	ID               uint64 `protobuf:"varint,1,opt,name=ID" json:"ID"`
 	Method           string `protobuf:"bytes,2,opt,name=Method" json:"Method"`

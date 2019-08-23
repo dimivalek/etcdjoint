@@ -36,11 +36,16 @@ const (
 
 var (
 	membersBucketName        = []byte("members")
+	learnersBucketName       = []byte("learners")
 	membersRemovedBucketName = []byte("members_removed")
+	learnersRemovedBucketName = []byte("members_removed")
 	clusterBucketName        = []byte("cluster")
 
+
+	StoreLearnersPrefix	  = path.Join(storePrefix, "learners")
 	StoreMembersPrefix        = path.Join(storePrefix, "members")
 	storeRemovedMembersPrefix = path.Join(storePrefix, "removed_members")
+	storeRemovedLearnersPrefix = path.Join(storePrefix, "removed_learners")
 )
 
 func mustSaveMemberToBackend(be backend.Backend, m *Member) {
@@ -56,6 +61,20 @@ func mustSaveMemberToBackend(be backend.Backend, m *Member) {
 	tx.Unlock()
 }
 
+func mustSaveLearnerToBackend(be backend.Backend, m *Learner) {
+	fmt.Print(" must save learner tobackend change etcdserver/membership/store.go \n")
+	mkey := backendMemberKey(m.ID)
+	mvalue, err := json.Marshal(m)
+	if err != nil {
+		plog.Panicf("marshal raftAttributes should never fail: %v", err)
+	}
+
+	tx := be.BatchTx()
+	tx.Lock()
+	tx.UnsafePut(learnersBucketName, mkey, mvalue)
+	tx.Unlock()
+}
+
 func mustDeleteMemberFromBackend(be backend.Backend, id types.ID) {
 	mkey := backendMemberKey(id)
 
@@ -66,6 +85,15 @@ func mustDeleteMemberFromBackend(be backend.Backend, id types.ID) {
 	tx.Unlock()
 }
 
+func mustDeleteLearnerFromBackend(be backend.Backend, id types.ID) {
+	mkey := backendMemberKey(id)
+
+	tx := be.BatchTx()
+	tx.Lock()
+	tx.UnsafeDelete(learnersBucketName, mkey)
+	tx.UnsafePut(learnersRemovedBucketName, mkey, []byte("removed"))
+	tx.Unlock()
+}
 func mustSaveClusterVersionToBackend(be backend.Backend, ver *semver.Version) {
 	ckey := backendClusterVersionKey()
 
@@ -83,6 +111,27 @@ func mustSaveMemberToStore(s store.Store, m *Member) {
 	p := path.Join(MemberStoreKey(m.ID), raftAttributesSuffix)
 	if _, err := s.Create(p, false, string(b), false, store.TTLOptionSet{ExpireTime: store.Permanent}); err != nil {
 		plog.Panicf("create raftAttributes should never fail: %v", err)
+	}
+}
+
+func mustSaveLearnerToStore(s store.Store, m *Learner) {
+	fmt.Print(" mustsavelearnertostore etcdserver/membership/store.go \n")
+	b, err := json.Marshal(m.RaftAttributes)
+	if err != nil {
+		plog.Panicf("marshal raftAttributes should never fail: %v", err)
+	}
+	p := path.Join(LearnerStoreKey(m.ID), raftAttributesSuffix)
+	if _, err := s.Create(p, false, string(b), false, store.TTLOptionSet{ExpireTime: store.Permanent}); err != nil {
+		plog.Panicf("create raftAttributes should never fail: %v", err)
+	}
+}
+
+func mustDeleteLearnerFromStore(s store.Store, id types.ID) {
+	if _, err := s.Delete(LearnerStoreKey(id), true, true); err != nil {
+		plog.Panicf("delete learner should never fail: %v", err)
+	}
+	if _, err := s.Create(RemovedLearnerStoreKey(id), false, "", false, store.TTLOptionSet{ExpireTime: store.Permanent}); err != nil {
+		plog.Panicf("create removedMember should never fail: %v", err)
 	}
 }
 
@@ -106,6 +155,17 @@ func mustUpdateMemberInStore(s store.Store, m *Member) {
 	}
 }
 
+func mustUpdateLearnerAttrInStore(s store.Store, m *Learner) {
+	b, err := json.Marshal(m.Attributes)
+	if err != nil {
+		plog.Panicf("marshal raftAttributes should never fail: %v", err)
+	}
+	p := path.Join(LearnerStoreKey(m.ID), attributesSuffix)
+	if _, err := s.Set(p, false, string(b), store.TTLOptionSet{ExpireTime: store.Permanent}); err != nil {
+		plog.Panicf("update raftAttributes should never fail: %v", err)
+	}
+}
+
 func mustUpdateMemberAttrInStore(s store.Store, m *Member) {
 	b, err := json.Marshal(m.Attributes)
 	if err != nil {
@@ -116,7 +176,6 @@ func mustUpdateMemberAttrInStore(s store.Store, m *Member) {
 		plog.Panicf("update raftAttributes should never fail: %v", err)
 	}
 }
-
 func mustSaveClusterVersionToStore(s store.Store, ver *semver.Version) {
 	if _, err := s.Set(StoreClusterVersionKey(), false, ver.String(), store.TTLOptionSet{ExpireTime: store.Permanent}); err != nil {
 		plog.Panicf("save cluster version should never fail: %v", err)
@@ -151,10 +210,37 @@ func nodeToMember(n *store.NodeExtern) (*Member, error) {
 	return m, nil
 }
 
+func nodeToLearner(n *store.NodeExtern) (*Learner, error) {
+	m := &Learner{ID: MustParseLearnerIDFromKey(n.Key)}
+	attrs := make(map[string][]byte)
+	raftAttrKey := path.Join(n.Key, raftAttributesSuffix)
+	attrKey := path.Join(n.Key, attributesSuffix)
+	for _, nn := range n.Nodes {
+		if nn.Key != raftAttrKey && nn.Key != attrKey {
+			return nil, fmt.Errorf("unknown key %q", nn.Key)
+		}
+		attrs[nn.Key] = []byte(*nn.Value)
+	}
+	if data := attrs[raftAttrKey]; data != nil {
+		if err := json.Unmarshal(data, &m.RaftAttributes); err != nil {
+			return nil, fmt.Errorf("unmarshal raftAttributes error: %v", err)
+		}
+	} else {
+		return nil, fmt.Errorf("raftAttributes key doesn't exist")
+	}
+	if data := attrs[attrKey]; data != nil {
+		if err := json.Unmarshal(data, &m.Attributes); err != nil {
+			return m, fmt.Errorf("unmarshal attributes error: %v", err)
+		}
+	}
+	return m, nil
+}
 func backendMemberKey(id types.ID) []byte {
 	return []byte(id.String())
 }
-
+func backendLearnerKey(id types.ID) []byte {
+	return []byte(id.String())
+}
 func backendClusterVersionKey() []byte {
 	return []byte("clusterVersion")
 }
@@ -165,19 +251,26 @@ func mustCreateBackendBuckets(be backend.Backend) {
 	defer tx.Unlock()
 	tx.UnsafeCreateBucket(membersBucketName)
 	tx.UnsafeCreateBucket(membersRemovedBucketName)
+	tx.UnsafeCreateBucket(learnersBucketName)
 	tx.UnsafeCreateBucket(clusterBucketName)
 }
 
 func MemberStoreKey(id types.ID) string {
 	return path.Join(StoreMembersPrefix, id.String())
 }
-
+func LearnerStoreKey(id types.ID) string {
+	return path.Join(StoreLearnersPrefix, id.String())
+}
 func StoreClusterVersionKey() string {
 	return path.Join(storePrefix, "version")
 }
 
 func MemberAttributesStorePath(id types.ID) string {
 	return path.Join(MemberStoreKey(id), attributesSuffix)
+}
+
+func LearnerAttributesStorePath(id types.ID) string {
+	return path.Join(LearnerStoreKey(id), attributesSuffix)
 }
 
 func MustParseMemberIDFromKey(key string) types.ID {
@@ -188,6 +281,16 @@ func MustParseMemberIDFromKey(key string) types.ID {
 	return id
 }
 
+func MustParseLearnerIDFromKey(key string) types.ID {
+	id, err := types.IDFromString(path.Base(key))
+	if err != nil {
+		plog.Panicf("unexpected parse member id error: %v", err)
+	}
+	return id
+}
+func RemovedLearnerStoreKey(id types.ID) string {
+	return path.Join(storeRemovedLearnersPrefix, id.String())
+}
 func RemovedMemberStoreKey(id types.ID) string {
 	return path.Join(storeRemovedMembersPrefix, id.String())
 }

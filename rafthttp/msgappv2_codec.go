@@ -30,6 +30,7 @@ const (
 	msgTypeLinkHeartbeat uint8 = 0
 	msgTypeAppEntries    uint8 = 1
 	msgTypeApp           uint8 = 2
+	msgTypeAppEntriesRec uint8 = 3
 
 	msgAppV2BufSize = 1024 * 1024
 )
@@ -70,6 +71,7 @@ type msgAppV2Encoder struct {
 	buf       []byte
 	uint64buf []byte
 	uint8buf  []byte
+	confids   []uint64
 }
 
 func newMsgAppV2Encoder(w io.Writer, fs *stats.FollowerStats) *msgAppV2Encoder {
@@ -79,6 +81,7 @@ func newMsgAppV2Encoder(w io.Writer, fs *stats.FollowerStats) *msgAppV2Encoder {
 		buf:       make([]byte, msgAppV2BufSize),
 		uint64buf: make([]byte, 8),
 		uint8buf:  make([]byte, 1),
+		//confids:   make([]byte, 8),
 	}
 }
 
@@ -90,11 +93,66 @@ func (enc *msgAppV2Encoder) encode(m *raftpb.Message) error {
 		if _, err := enc.w.Write(enc.uint8buf); err != nil {
 			return err
 		}
-	case enc.index == m.Index && enc.term == m.LogTerm && m.LogTerm == m.Term:
+	case enc.index == m.Index && enc.term == m.LogTerm && m.LogTerm == m.Term && m.ConfIDs == nil :
+		//fmt.Print("m.ConfIDs at msgappv2_codec.go is",m.ConfIDs,"\n")
 		enc.uint8buf[0] = byte(msgTypeAppEntries)
 		if _, err := enc.w.Write(enc.uint8buf); err != nil {
 			return err
 		}
+		// write length of entries
+		binary.BigEndian.PutUint64(enc.uint64buf, uint64(len(m.Entries)))
+		if _, err := enc.w.Write(enc.uint64buf); err != nil {
+			return err
+		}
+		for i := 0; i < len(m.Entries); i++ {
+			// write length of entry
+			binary.BigEndian.PutUint64(enc.uint64buf, uint64(m.Entries[i].Size()))
+			if _, err := enc.w.Write(enc.uint64buf); err != nil {
+				return err
+			}
+			if n := m.Entries[i].Size(); n < msgAppV2BufSize {
+				if _, err := m.Entries[i].MarshalTo(enc.buf); err != nil {
+					return err
+				}
+				if _, err := enc.w.Write(enc.buf[:n]); err != nil {
+					return err
+				}
+			} else {
+				if _, err := enc.w.Write(pbutil.MustMarshal(&m.Entries[i])); err != nil {
+					return err
+				}
+			}
+			enc.index++
+		}
+		// write commit index
+		binary.BigEndian.PutUint64(enc.uint64buf, m.Commit)
+		if _, err := enc.w.Write(enc.uint64buf); err != nil {
+			return err
+		}
+		enc.fs.Succ(time.Since(start))
+	case enc.index == m.Index && enc.term == m.LogTerm && m.LogTerm == m.Term && m.ConfIDs != nil :
+		//fmt.Print("m.ConfIDs at msgappv2_codec.go is",m.ConfIDs,"\n")
+		//enc.confids = m.ConfIDs
+		//binary.BigEndian.PutUint64(enc.confids, uint64(len(m.ConfIDs)))
+		/*if _, err := enc.w.Write(enc.confids); err != nil {
+			return err
+		}
+
+		for i := 0; i < len(m.ConfIDs); i++ {
+			// write length of confid
+			binary.BigEndian.PutUint64(enc.confids, m.ConfIDs[i])
+			if _, err := enc.w.Write(enc.confids); err != nil {
+				return err
+			}
+		}*/
+		//fmt.Print("enc confids are ",enc.confids,"\n")
+		enc.uint8buf[0] = byte(msgTypeAppEntriesRec)
+		if _, err := enc.w.Write(enc.uint8buf); err != nil {
+			return err
+		}
+		/*if _, err := enc.w.Write(enc.confids); err != nil {
+			return err
+		}*/
 		// write length of entries
 		binary.BigEndian.PutUint64(enc.uint64buf, uint64(len(m.Entries)))
 		if _, err := enc.w.Write(enc.uint64buf); err != nil {
@@ -158,6 +216,7 @@ type msgAppV2Decoder struct {
 	buf       []byte
 	uint64buf []byte
 	uint8buf  []byte
+	confids   []uint64
 }
 
 func newMsgAppV2Decoder(r io.Reader, local, remote types.ID) *msgAppV2Decoder {
@@ -168,6 +227,7 @@ func newMsgAppV2Decoder(r io.Reader, local, remote types.ID) *msgAppV2Decoder {
 		buf:       make([]byte, msgAppV2BufSize),
 		uint64buf: make([]byte, 8),
 		uint8buf:  make([]byte, 1),
+		//confids:   make([]byte, 8),
 	}
 }
 
@@ -184,6 +244,8 @@ func (dec *msgAppV2Decoder) decode() (raftpb.Message, error) {
 	case msgTypeLinkHeartbeat:
 		return linkHeartbeatMessage, nil
 	case msgTypeAppEntries:
+///////////////////////////////////////////////////
+		
 		m = raftpb.Message{
 			Type:    raftpb.MsgApp,
 			From:    uint64(dec.remote),
@@ -225,6 +287,59 @@ func (dec *msgAppV2Decoder) decode() (raftpb.Message, error) {
 			return m, err
 		}
 		m.Commit = binary.BigEndian.Uint64(dec.uint64buf)
+	case msgTypeAppEntriesRec:
+		//fmt.Print("dec confids are ",dec.confids,"\n")
+		m = raftpb.Message{
+			Type:    raftpb.MsgAppRec,
+			From:    uint64(dec.remote),
+			To:      uint64(dec.local),
+			Term:    dec.term,
+			LogTerm: dec.term,
+			Index:   dec.index,
+			ConfIDs: dec.confids,
+		}
+		// decode entries
+		if _, err := io.ReadFull(dec.r, dec.uint64buf); err != nil {
+			return m, err
+		}
+		l := binary.BigEndian.Uint64(dec.uint64buf)
+		m.Entries = make([]raftpb.Entry, int(l))
+		for i := 0; i < int(l); i++ {
+			if _, err := io.ReadFull(dec.r, dec.uint64buf); err != nil {
+				return m, err
+			}
+			size := binary.BigEndian.Uint64(dec.uint64buf)
+			var buf []byte
+			if size < msgAppV2BufSize {
+				buf = dec.buf[:size]
+				if _, err := io.ReadFull(dec.r, buf); err != nil {
+					return m, err
+				}
+			} else {
+				buf = make([]byte, int(size))
+				if _, err := io.ReadFull(dec.r, buf); err != nil {
+					return m, err
+				}
+			}
+			dec.index++
+			// 1 alloc
+			pbutil.MustUnmarshal(&m.Entries[i], buf)
+		}
+		// decode commit index
+		if _, err := io.ReadFull(dec.r, dec.uint64buf); err != nil {
+			return m, err
+		}
+		m.Commit = binary.BigEndian.Uint64(dec.uint64buf)
+		/*if _, err := io.ReadFull(dec.r, dec.confids); err != nil {
+			return m, err
+		}*/
+		//ll := binary.BigEndian.Uint64(dec.confids)
+		/*m.ConfIDs = make([]uint64, int(ll))
+		for i := 0; i < int(ll); i++ {
+			if _, err := io.ReadFull(dec.r, dec.confids); err != nil {
+				return m, err
+			}
+		}*/
 	case msgTypeApp:
 		var size uint64
 		if err := binary.Read(dec.r, binary.BigEndian, &size); err != nil {

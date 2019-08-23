@@ -1,25 +1,25 @@
 #!/bin/bash -e
 
-leader=http://localhost:2379
+leader=http://localhost:12379
 # assume three servers
-servers=( http://localhost:2379 http://localhost:22379 http://localhost:32379 )
+servers=( http://localhost:12379 http://localhost:22379 http://localhost:32379 )
 
-keyarray=( 64 256 )
+keyarray=( 16 64 )
 
 for keysize in ${keyarray[@]}; do
 
   echo write, 1 client, $keysize key size, to leader
-  ./hey -m PUT -n 10 -d value=`head -c $keysize < /dev/zero | tr '\0' '\141'` -c 1 -T application/x-www-form-urlencoded $leader/v2/keys/foo | grep -e "Requests/sec" -e "Latency" -e "90%" | tr "\n" "\t" | xargs echo
+  ./hey -m PUT -n 10 -d value=`head -c $keysize < /dev/zero | tr '\0' '\141'` -c 1 -T application/x-www-form-urlencoded $leader/v2/keys/foo > latencytext | grep -e "Requests/sec" -e "Latency" -e "90%" | tr "\n" "\t" | xargs echo
 
   echo write, 64 client, $keysize key size, to leader
-  ./hey -m PUT -n 640 -d value=`head -c $keysize < /dev/zero | tr '\0' '\141'` -c 64 -T application/x-www-form-urlencoded $leader/v2/keys/foo | grep -e "Requests/sec" -e "Latency" -e "90%" | tr "\n" "\t" | xargs echo
+  ./hey -m PUT -n 640 -d value=`head -c $keysize < /dev/zero | tr '\0' '\141'` -c 64 -T application/x-www-form-urlencoded $leader/v2/keys/foo > latencytext1 | grep -e "Requests/sec" -e "Latency" -e "90%" | tr "\n" "\t" | xargs echo
 
   echo write, 256 client, $keysize key size, to leader
-  ./hey -m PUT -n 2560 -d value=`head -c $keysize < /dev/zero | tr '\0' '\141'` -c 256 -T application/x-www-form-urlencoded $leader/v2/keys/foo | grep -e "Requests/sec" -e "Latency" -e "90%" | tr "\n" "\t" | xargs echo
+  ./hey -m PUT -n 2560 -d value=`head -c $keysize < /dev/zero | tr '\0' '\141'` -c 256 -T application/x-www-form-urlencoded $leader/v2/keys/foo > latencytext2 | grep -e "Requests/sec" -e "Latency" -e "90%" | tr "\n" "\t" | xargs echo
 
   echo write, 64 client, $keysize key size, to all servers
   for i in ${servers[@]}; do
-    ./hey -m PUT -n 210 -d value=`head -c $keysize < /dev/zero | tr '\0' '\141'` -c 21 -T application/x-www-form-urlencoded $i/v2/keys/foo | grep -e "Requests/sec" -e "Latency" -e "90%" | tr "\n" "\t" | xargs echo &
+    ./hey -m PUT -n 210 -d value=`head -c $keysize < /dev/zero | tr '\0' '\141'` -c 21 -T application/x-www-form-urlencoded $i/v2/keys/foo > latencytext3 | grep -e "Requests/sec" -e "Latency" -e "90%" | tr "\n" "\t" | xargs echo &
   done
   # wait for all heys to start running
   sleep 3

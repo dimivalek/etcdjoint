@@ -299,14 +299,15 @@ func (p *peer) pick(m raftpb.Message) (writec chan<- raftpb.Message, picked stri
 	// stream for a long time, only use one of the N pipelines to send MsgSnap.
 	if isMsgSnap(m) {
 		return p.pipeline.msgc, pipelineMsg
-	} else if writec, ok = p.msgAppV2Writer.writec(); ok && isMsgApp(m) {
-		return writec, streamAppV2
-	} else if writec, ok = p.writer.writec(); ok {
+	}else if writec, ok = p.writer.writec(); ok {
 		return writec, streamMsg
-	}
+	}/*else if writec, ok = p.msgAppV2Writer.writec(); ok && ( isMsgApp(m) || isMsgAppRec(m) || isMsgAppNewConf(m) ){
+		return writec, streamAppV2
+	}*/ 
 	return p.pipeline.msgc, pipelineMsg
 }
 
-func isMsgApp(m raftpb.Message) bool { return m.Type == raftpb.MsgApp }
-
+//func isMsgApp(m raftpb.Message) bool { return m.Type == raftpb.MsgApp }
+//func isMsgAppRec(m raftpb.Message) bool { return m.Type == raftpb.MsgAppRec }
+//func isMsgAppNewConf(m raftpb.Message) bool { return m.Type == raftpb.MsgAppNewConf }
 func isMsgSnap(m raftpb.Message) bool { return m.Type == raftpb.MsgSnap }

@@ -55,6 +55,7 @@ func NewMemberCommand() cli.Command {
 	}
 }
 
+
 func actionMemberList(c *cli.Context) error {
 	if len(c.Args()) != 0 {
 		fmt.Fprintln(os.Stderr, "No arguments accepted")

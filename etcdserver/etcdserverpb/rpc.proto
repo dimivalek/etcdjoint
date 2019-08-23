@@ -129,7 +129,19 @@ service Cluster {
         body: "*"
     };
   }
+rpc LearnerAdd(LearnerAddRequest) returns (LearnerAddResponse) {
+      option (google.api.http) = {
+        post: "/v3beta/cluster/learner/add"
+        body: "*"
+    };
+  }
 
+rpc Reconfiguration(ReconfigurationRequest) returns (ReconfigurationResponse) {
+      option (google.api.http) = {
+        post: "/v3beta/cluster/reconfiguration"
+        body: "*"
+    };
+  }
   // MemberRemove removes an existing member from the cluster.
   rpc MemberRemove(MemberRemoveRequest) returns (MemberRemoveResponse) {
       option (google.api.http) = {
@@ -823,7 +835,35 @@ message MemberUpdateResponse{
   // members is a list of all members after updating the member.
   repeated Member members = 2;
 }
+////////////////////////////////////////
+message Learner {
+  // ID is the learner ID for this learner.
+  uint64 ID = 1;
+  // name is the human-readable name of the learner. If the learner is not started, the name will be an empty string.
+  string name = 2;
+  // peerURLs is the list of URLs the learner exposes to the cluster for communication.
+  repeated string peerURLs = 3;
+  // clientURLs is the list of URLs the learner exposes to clients for communication. If the learner is not started, clientURLs will be empty.
+  repeated string clientURLs = 4;
+}
 
+message LearnerAddRequest {
+  // peerURLs is the list of URLs the added learner will use to communicate with the cluster.
+  repeated string peerURLs = 1;
+}
+message ReconfigurationRequest {
+  repeated uint64 ConfIDs = 1;
+}
+
+message ReconfigurationResponse {
+  ResponseHeader header = 1;
+  repeated uint64 ConfIDs = 2;
+}
+message LearnerAddResponse {
+  ResponseHeader header = 1;
+  // learner is the learner information for the added learner.
+  Learner learner = 2;
+}
 message MemberListRequest {
 }
 
@@ -831,6 +871,8 @@ message MemberListResponse {
   ResponseHeader header = 1;
   // members is a list of all members associated with the cluster.
   repeated Member members = 2;
+
+  repeated Learner learners = 3;
 }
 
 message DefragmentRequest {

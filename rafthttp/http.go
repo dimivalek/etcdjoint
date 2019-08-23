@@ -105,13 +105,18 @@ func (h *pipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var m raftpb.Message
-	if err := m.Unmarshal(b); err != nil {
-		plog.Errorf("failed to unmarshal raft message (%v)", err)
-		http.Error(w, "error unmarshaling raft message", http.StatusBadRequest)
-		recvFailures.WithLabelValues(r.RemoteAddr).Inc()
+	fmt.Print("m.Types is ",m.Type,"\n")
+	if m.Type == 19 || m.Type == 20 || m.Type == 21{
 		return
-	}
+	}else{
+		if err := m.Unmarshal(b); err != nil {
+			plog.Errorf("failed to unmarshal raft message (%v)", err)
+			http.Error(w, "error unmarshaling raft message", http.StatusBadRequest)
+			recvFailures.WithLabelValues(r.RemoteAddr).Inc()
+			return
+		}
 
+	}
 	receivedBytes.WithLabelValues(types.ID(m.From).String()).Add(float64(len(b)))
 
 	if err := h.r.Process(context.TODO(), m); err != nil {

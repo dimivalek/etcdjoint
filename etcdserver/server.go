@@ -141,14 +141,22 @@ type Server interface {
 	// ErrIDRemoved if member ID is removed from the cluster, or return
 	// ErrIDExists if member ID exists in the cluster.
 	AddMember(ctx context.Context, memb membership.Member) ([]*membership.Member, error)
+	
+	// AddLearner attempts to add a learner into the cluster. It will return
+	// ErrIDRemoved if learner ID is removed from the cluster, or return
+	// ErrIDExists if learner ID exists in the cluster.
+	AddLearner(ctx context.Context, learn membership.Learner) ([]*membership.Learner, error)
+
 	// RemoveMember attempts to remove a member from the cluster. It will
 	// return ErrIDRemoved if member ID is removed from the cluster, or return
 	// ErrIDNotFound if member ID is not in the cluster.
 	RemoveMember(ctx context.Context, id uint64) ([]*membership.Member, error)
+	RemoveLearner(ctx context.Context, id uint64) ([]*membership.Learner, error)
 	// UpdateMember attempts to update an existing member in the cluster. It will
 	// return ErrIDNotFound if the member ID does not exist.
 	UpdateMember(ctx context.Context, updateMemb membership.Member) ([]*membership.Member, error)
 
+	Reconfiguration(ctx context.Context, confids []uint64) ([]uint64, error)
 	// ClusterVersion is the cluster-wide minimum major.minor version.
 	// Cluster version is set to the min version that an etcd member is
 	// compatible with when first bootstrap.
@@ -256,6 +264,7 @@ type EtcdServer struct {
 // NewServer creates a new EtcdServer from the supplied configuration. The
 // configuration is considered static for the lifetime of the EtcdServer.
 func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
+	fmt.Print("new server server.go \n")
 	st := store.New(StoreClusterPrefix, StoreKeysPrefix)
 
 	var (
@@ -309,18 +318,19 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 		if err != nil {
 			return nil, err
 		}
-		existingCluster, gerr := GetClusterFromRemotePeers(getRemotePeerURLs(cl, cfg.Name), prt)
+		existingCluster, gerr := GetClusterFromRemotePeers(getRemotePeerURLs(cl, cfg.Name), prt/*,cl*/)
 		if gerr != nil {
 			return nil, fmt.Errorf("cannot fetch cluster info from peer urls: %v", gerr)
 		}
 		if err = membership.ValidateClusterAndAssignIDs(cl, existingCluster); err != nil {
 			return nil, fmt.Errorf("error validating peerURLs %s: %v", existingCluster, err)
 		}
-		if !isCompatibleWithCluster(cl, cl.MemberByName(cfg.Name).ID, prt) {
-			return nil, fmt.Errorf("incompatible with current running cluster")
-		}
+		//if !isCompatibleWithCluster2(cl, cl.MemberByName(cfg.Name).ID,cl.LearnerByName(cfg.Name).ID, prt) {
+		//	return nil, fmt.Errorf("incompatible with current running cluster")
+		//}
 
 		remotes = existingCluster.Members()
+		fmt.Print("remotes length is ",len(remotes),"\n")
 		cl.SetID(existingCluster.ID())
 		cl.SetStore(st)
 		cl.SetBackend(be)
@@ -516,6 +526,12 @@ func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {
 			tr.AddPeer(m.ID, m.PeerURLs)
 		}
 	}
+////////////
+	for _, m := range cl.Learners() {
+		if m.ID != id {
+			tr.AddPeer(m.ID, m.PeerURLs)
+		}
+	}
 	srv.r.transport = tr
 
 	return srv, nil
@@ -539,6 +555,7 @@ func (s *EtcdServer) Start() {
 // modify a server's fields after it has been sent to Start.
 // This function is just used for testing.
 func (s *EtcdServer) start() {
+	fmt.Print("start \n")
 	if s.Cfg.SnapCount == 0 {
 		plog.Infof("set snapshot count to default %d", DefaultSnapCount)
 		s.Cfg.SnapCount = DefaultSnapCount
@@ -610,7 +627,7 @@ func (s *EtcdServer) Process(ctx context.Context, m raftpb.Message) error {
 		plog.Warningf("reject message from removed member %s", types.ID(m.From).String())
 		return httptypes.NewHTTPError(http.StatusForbidden, "cannot process message from removed member")
 	}
-	if m.Type == raftpb.MsgApp {
+	if m.Type == raftpb.MsgApp || m.Type == raftpb.MsgAppRec || m.Type == raftpb.MsgAppNewConf {
 		s.stats.RecvAppendReq(types.ID(m.From).String(), m.Size())
 	}
 	return s.r.Step(ctx, m)
@@ -756,7 +773,9 @@ func (s *EtcdServer) run() {
 		select {
 		case ap := <-s.r.apply():
 			f := func(context.Context) { s.applyAll(&ep, &ap) }
+			//fmt.Print("apply after applyall \n")
 			sched.Schedule(f)
+			//fmt.Print("apply after schedule \n")
 		case leases := <-expiredLeaseC:
 			s.goAttach(func() {
 				// Increases throughput of expired leases deletion process through parallelization
@@ -793,8 +812,10 @@ func (s *EtcdServer) run() {
 }
 
 func (s *EtcdServer) applyAll(ep *etcdProgress, apply *apply) {
+
 	s.applySnapshot(ep, apply)
 	st := time.Now()
+	//fmt.Print("applyall \n")
 	s.applyEntries(ep, apply)
 	d := time.Since(st)
 	entriesNum := len(apply.entries)
@@ -802,13 +823,16 @@ func (s *EtcdServer) applyAll(ep *etcdProgress, apply *apply) {
 		plog.Warningf("apply entries took too long [%v for %d entries]", d, len(apply.entries))
 		plog.Warningf("avoid queries with large range/delete range!")
 	}
+	//fmt.Print("applyall 1 \n")
 	proposalsApplied.Set(float64(ep.appliedi))
+	//fmt.Print("applyall 2 \n")
 	s.applyWait.Trigger(ep.appliedi)
+	//fmt.Print("applyall 3 \n")
 	// wait for the raft routine to finish the disk writes before triggering a
 	// snapshot. or applied index might be greater than the last index in raft
 	// storage, since the raft routine might be slower than apply routine.
 	<-apply.notifyc
-
+	//fmt.Print("apply after notifyc \n")
 	s.triggerSnapshot(ep)
 	select {
 	// snapshot requested via send()
@@ -820,6 +844,7 @@ func (s *EtcdServer) applyAll(ep *etcdProgress, apply *apply) {
 }
 
 func (s *EtcdServer) applySnapshot(ep *etcdProgress, apply *apply) {
+
 	if raft.IsEmptySnap(apply.snapshot) {
 		return
 	}
@@ -909,6 +934,12 @@ func (s *EtcdServer) applySnapshot(ep *etcdProgress, apply *apply) {
 		}
 		s.r.transport.AddPeer(m.ID, m.PeerURLs)
 	}
+	for _, l := range s.cluster.Learners() {
+		if l.ID == s.ID() {
+			continue
+		}
+		s.r.transport.AddPeer(l.ID, l.PeerURLs)
+	}
 	plog.Info("finished adding peers from new cluster configuration into network...")
 
 	ep.appliedt = apply.snapshot.Metadata.Term
@@ -918,7 +949,9 @@ func (s *EtcdServer) applySnapshot(ep *etcdProgress, apply *apply) {
 }
 
 func (s *EtcdServer) applyEntries(ep *etcdProgress, apply *apply) {
+	//fmt.Print("applyentriessss \n")
 	if len(apply.entries) == 0 {
+		//fmt.Print("applyentries 00000000000 \n")
 		return
 	}
 	firsti := apply.entries[0].Index
@@ -930,12 +963,15 @@ func (s *EtcdServer) applyEntries(ep *etcdProgress, apply *apply) {
 		ents = apply.entries[ep.appliedi+1-firsti:]
 	}
 	if len(ents) == 0 {
+		//fmt.Print("applyentries 2 \n")
 		return
 	}
 	var shouldstop bool
+
 	if ep.appliedt, ep.appliedi, shouldstop = s.apply(ents, &ep.confState); shouldstop {
 		go s.stopWithDelay(10*100*time.Millisecond, fmt.Errorf("the member has been permanently removed from the cluster"))
 	}
+	//fmt.Print("applyentries after apply\n")
 }
 
 func (s *EtcdServer) triggerSnapshot(ep *etcdProgress) {
@@ -1105,7 +1141,53 @@ func (s *EtcdServer) AddMember(ctx context.Context, memb membership.Member) ([]*
 	}
 	return s.configure(ctx, cc)
 }
+//////////////////////////////
+func (s *EtcdServer) AddLearner(ctx context.Context, learner membership.Learner) ([]*membership.Learner, error) {
+	fmt.Print(" add learner etcdserver/server.go Add learner \n")
+	fmt.Print(" add learner etcdserver/server.go Add learner new\n")
+	//if err := s.checkMembershipOperationPermission(ctx); err != nil {
+		//return nil, err
+	//}
+	/*if s.Cfg.StrictReconfigCheck {
+		// by default StrictReconfigCheck is enabled; reject new members if unhealthy
+		if !s.cluster.IsReadyToAddNewMember() {
+			plog.Warningf("not enough started members, rejecting learner add %+v", learner)
+			return nil, ErrNotEnoughStartedMembers
+		}
+		//////////
+		//if !isConnectedFullySince(s.r.transport, time.Now().Add(-HealthInterval), s.ID(), s.cluster.Members()) {
+			//plog.Warningf("not healthy for reconfigure, rejecting learner add %+v", learner)
+			//return nil, ErrUnhealthy
+		//}
+	}*/
 
+	// TODO: move Member to protobuf type
+	b, err := json.Marshal(learner)
+	if err != nil {
+		return nil, err
+	}
+	cc := raftpb.ConfChange{
+		Type:    raftpb.ConfChangeAddLearnerNode,
+		NodeID:  uint64(learner.ID),
+		Context: b,
+	}
+	return s.learnerconfigure(ctx, cc)
+}
+
+func (s *EtcdServer) Reconfiguration(ctx context.Context, confids []uint64) ([]uint64, error) {
+	fmt.Print(" Reconfiguration etcdserver/server.go \n")
+	b, err := json.Marshal(confids)
+	if err != nil {
+		return nil, err
+	}
+	cc := raftpb.ConfChange{
+		Type:    raftpb.Reconfiguration,
+		//ID:  1,
+		ConfIDs: confids,
+		Context: b,
+	}
+	return s.reconfigure(ctx, cc)
+}
 func (s *EtcdServer) RemoveMember(ctx context.Context, id uint64) ([]*membership.Member, error) {
 	if err := s.checkMembershipOperationPermission(ctx); err != nil {
 		return nil, err
@@ -1123,6 +1205,19 @@ func (s *EtcdServer) RemoveMember(ctx context.Context, id uint64) ([]*membership
 	return s.configure(ctx, cc)
 }
 
+func (s *EtcdServer) RemoveLearner(ctx context.Context, id uint64) ([]*membership.Learner, error) {
+	if err := s.checkMembershipOperationPermission(ctx); err != nil {
+		return nil, err
+	}
+
+	// by default StrictReconfigCheck is enabled; reject removal if leads to quorum loss
+
+	cc := raftpb.ConfChange{
+		Type:   raftpb.ConfChangeRemoveLearner,
+		NodeID: id,
+	}
+	return s.learnerconfigure(ctx, cc)
+}
 func (s *EtcdServer) mayRemoveMember(id types.ID) error {
 	if !s.Cfg.StrictReconfigCheck {
 		return nil
@@ -1140,8 +1235,10 @@ func (s *EtcdServer) mayRemoveMember(id types.ID) error {
 
 	// protect quorum if some members are down
 	m := s.cluster.Members()
+	l := s.cluster.Learners()
 	active := numConnectedSince(s.r.transport, time.Now().Add(-HealthInterval), s.ID(), m)
-	if (active - 1) < 1+((len(m)-1)/2) {
+	activel := numConnectedSinceL(s.r.transport, time.Now().Add(-HealthInterval), s.ID(), l)
+	if (active + activel - 1) < 1+((len(m)-1)/2) {
 		plog.Warningf("reconfigure breaks active quorum, rejecting remove member %s", id)
 		return ErrUnhealthy
 	}
@@ -1181,6 +1278,17 @@ func (s *EtcdServer) Leader() types.ID { return types.ID(s.Lead()) }
 
 type confChangeResponse struct {
 	membs []*membership.Member
+	learns []*membership.Learner
+	err   error
+}
+
+type reconfChangeResponse struct {
+	confids []uint64
+	err   error
+}
+
+type lconfChangeResponse struct {
+	learn *membership.Learner
 	err   error
 }
 
@@ -1210,6 +1318,59 @@ func (s *EtcdServer) configure(ctx context.Context, cc raftpb.ConfChange) ([]*me
 	}
 }
 
+
+func (s *EtcdServer) reconfigure(ctx context.Context, cc raftpb.ConfChange) ([]uint64, error) {
+	fmt.Print("reconfigure server.go \n")
+	cc.ID = s.reqIDGen.Next()
+	ch := s.w.Register(cc.ID)
+	start := time.Now()
+	if err := s.r.ProposeReConfChange(ctx, cc); err != nil {
+		s.w.Trigger(cc.ID, nil)
+		return nil, err
+	}
+	select {
+	case x := <-ch:
+		if x == nil {
+			plog.Panicf("configure trigger value should never be nil")
+		}
+		resp := x.(*reconfChangeResponse)
+		return resp.confids, resp.err
+	case <-ctx.Done():
+		s.w.Trigger(cc.ID, nil)
+		return nil, s.parseProposeCtxErr(ctx.Err(), start)
+	case <-s.stopping:
+		return nil, ErrStopped
+	//default:
+		
+	}
+}
+//////////////////////////////////////////////////////////
+func (s *EtcdServer) learnerconfigure(ctx context.Context, cc raftpb.ConfChange) ([]*membership.Learner, error) {
+	cc.ID = s.reqIDGen.Next()
+	ch := s.w.Register(cc.ID)
+	start := time.Now()
+	fmt.Print(" learner configure etcdserver/server.go  \n")
+	if err := s.r.ProposeConfChange(ctx, cc); err != nil {
+		
+		s.w.Trigger(cc.ID, nil)
+		return nil, err
+	}
+	select {
+	case x := <-ch:
+		if x == nil {
+			plog.Panicf("configure trigger value should never be nil")
+		}
+		resp := x.(*confChangeResponse)
+		return resp.learns, resp.err
+	case <-ctx.Done():
+		fmt.Print(" ctx.Done() \n")
+		s.w.Trigger(cc.ID, nil) // GC wait
+		return nil, s.parseProposeCtxErr(ctx.Err(), start)
+	case <-s.stopping:
+		fmt.Print(" s.stopping \n")
+		return nil, ErrStopped
+	}
+}
 // sync proposes a SYNC request and is non-blocking.
 // This makes no guarantee that the request will be proposed or performed.
 // The request will be canceled after the given timeout.
@@ -1304,18 +1465,38 @@ func (s *EtcdServer) apply(es []raftpb.Entry, confState *raftpb.ConfState) (appl
 			}
 			var cc raftpb.ConfChange
 			pbutil.MustUnmarshal(&cc, e.Data)
+			//fmt.Print("apply raftpb.EntryConfChange \n")
 			removedSelf, err := s.applyConfChange(cc, confState)
+			//fmt.Print("err \n",err,"\n")
 			s.setAppliedIndex(e.Index)
 			shouldStop = shouldStop || removedSelf
-			s.w.Trigger(cc.ID, &confChangeResponse{s.cluster.Members(), err})
+			//fmt.Print("here is the problem \n")
+			s.w.Trigger(cc.ID, &confChangeResponse{s.cluster.Members(),s.cluster.Learners(), err})
+		case raftpb.EntryReConfChange:
+			fmt.Print("etnryreconfchange apply\n")
+			// set the consistent index of current executing entry
+			if e.Index > s.consistIndex.ConsistentIndex() {
+				s.consistIndex.setConsistentIndex(e.Index)
+			}
+			var cc raftpb.ConfChange
+			pbutil.MustUnmarshal(&cc, e.Data)
+			fmt.Print("apply raftpb.EntryReConfChange after unmarshall \n")
+			removedSelf, err := s.applyReConfChange(cc, confState)
+			//fmt.Print("apply raftpb.EntryReConfChange \n")
+			//s.setAppliedIndex(e.Index)
+			shouldStop = shouldStop || removedSelf
+			fmt.Print("err ",err,"\n")
+			//fmt.Print("cc.ID is confids are",cc.ID,s.cluster.Confids(),"\n")
+			s.w.Trigger(cc.ID, &reconfChangeResponse{s.cluster.Confids(), err})
 		default:
-			plog.Panicf("entry type should be either EntryNormal or EntryConfChange")
+			plog.Panicf("entry type should be either EntryNormal or EntryConfChange or EntryReConfChange")
 		}
 		atomic.StoreUint64(&s.r.index, e.Index)
 		atomic.StoreUint64(&s.r.term, e.Term)
 		appliedt = e.Term
 		appliedi = e.Index
 	}
+
 	return appliedt, appliedi, shouldStop
 }
 
@@ -1401,11 +1582,14 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 // applyConfChange applies a ConfChange to the server. It is only
 // invoked with a ConfChange that has already passed through Raft
 func (s *EtcdServer) applyConfChange(cc raftpb.ConfChange, confState *raftpb.ConfState) (bool, error) {
+	fmt.Print("applyconf change\n")
 	if err := s.cluster.ValidateConfigurationChange(cc); err != nil {
 		cc.NodeID = raft.None
 		s.r.ApplyConfChange(cc)
+
 		return false, err
 	}
+	fmt.Print("ApplyConfChange server.go\n")
 	*confState = *s.r.ApplyConfChange(cc)
 	switch cc.Type {
 	case raftpb.ConfChangeAddNode:
@@ -1420,9 +1604,30 @@ func (s *EtcdServer) applyConfChange(cc raftpb.ConfChange, confState *raftpb.Con
 		if m.ID != s.id {
 			s.r.transport.AddPeer(m.ID, m.PeerURLs)
 		}
+	case raftpb.ConfChangeAddLearnerNode:
+		fmt.Print("conf change add learner node server.go\n")
+		l := new(membership.Learner)
+		if err := json.Unmarshal(cc.Context, l); err != nil {
+			plog.Panicf("unmarshal learner should never fail: %v", err)
+		}
+		if cc.NodeID != uint64(l.ID) {
+			plog.Panicf("nodeID should always be equal to learner ID")
+		}
+		fmt.Print("add learner  server.go\n")
+		s.cluster.AddLearner(l)
+		if l.ID != s.id {
+			s.r.transport.AddPeer(l.ID, l.PeerURLs)
+		}
 	case raftpb.ConfChangeRemoveNode:
 		id := types.ID(cc.NodeID)
 		s.cluster.RemoveMember(id)
+		if id == s.id {
+			return true, nil
+		}
+		s.r.transport.RemovePeer(id)
+	case raftpb.ConfChangeRemoveLearner:
+		id := types.ID(cc.NodeID)
+		s.cluster.RemoveLearner(id)
 		if id == s.id {
 			return true, nil
 		}
@@ -1439,6 +1644,22 @@ func (s *EtcdServer) applyConfChange(cc raftpb.ConfChange, confState *raftpb.Con
 		if m.ID != s.id {
 			s.r.transport.UpdatePeer(m.ID, m.PeerURLs)
 		}
+	}
+	return false, nil
+}
+
+func (s *EtcdServer) applyReConfChange(cc raftpb.ConfChange, confState *raftpb.ConfState) (bool, error) {
+	fmt.Print("applyreconf change\n")
+	fmt.Print("ApplyreConfChange server.go\n")
+	*confState = *s.r.ApplyReConfChange(cc)
+	switch cc.Type {
+	case raftpb.Reconfiguration:
+		//COULD BE USED TO UPDATE BACKWARDS THE MEMBERS AND THE LEARNERS OF THE CLUSTER
+		/*for _,id := range confids{
+			s.r.transport.AddPeer(id, l.PeerURLs)
+		}*/
+		//cluster participants are already initialized and set up
+		//return true, nil
 	}
 	return false, nil
 }
@@ -1629,7 +1850,7 @@ func (s *EtcdServer) parseProposeCtxErr(err error, start time.Time) error {
 				return ErrTimeoutDueToConnectionLost
 			}
 		}
-
+		fmt.Print("Errtimeout server.go \n ")
 		return ErrTimeout
 	default:
 		return err

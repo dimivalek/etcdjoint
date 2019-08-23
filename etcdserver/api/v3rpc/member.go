@@ -17,7 +17,7 @@ package v3rpc
 import (
 	"context"
 	"time"
-
+	"fmt"
 	"github.com/coreos/etcd/etcdserver"
 	"github.com/coreos/etcd/etcdserver/api"
 	"github.com/coreos/etcd/etcdserver/api/v3rpc/rpctypes"
@@ -58,6 +58,48 @@ func (cs *ClusterServer) MemberAdd(ctx context.Context, r *pb.MemberAddRequest) 
 	}, nil
 }
 
+func (cs *ClusterServer) LearnerAdd(ctx context.Context, r *pb.LearnerAddRequest) (*pb.LearnerAddResponse, error) {
+	fmt.Print("r.urls are :",r.PeerURLs,"\n")
+	urls, err := types.NewURLs(r.PeerURLs)
+	if err != nil {
+		return nil, rpctypes.ErrGRPCMemberBadURLs
+	}
+	fmt.Print(" learner add etcdserver/api/v3rpc/member.go \n")
+	now := time.Now()
+	////is actually learner not member
+	m := membership.NewLearner("", urls, "", &now)
+	learns, merr := cs.server.AddLearner(ctx, *m)
+	//learnerToProtoLearner(learn)
+	if merr != nil {
+		return nil, togRPCError(merr)
+	}
+
+	return &pb.LearnerAddResponse{
+		Header:  cs.header(),
+		Learner:/*learnerToProtoLearner(learn)*/ &pb.Learner{ID: uint64(m.ID), PeerURLs: m.PeerURLs},
+		Learners: learnersToProtoLearners(learns),
+	}, nil
+}
+
+func (cs *ClusterServer) Reconfiguration(ctx context.Context, r *pb.ReconfigurationRequest) (*pb.ReconfigurationResponse, error) {
+	confids:= r.ConfIDs
+	
+	fmt.Print(" confids are ",confids," \n")
+	//now := time.Now()
+	reconf, merr := cs.server.Reconfiguration(ctx, confids)
+	fmt.Print(" reconf \n")
+	if merr != nil {
+		return nil, togRPCError(merr)
+	}
+	if reconf != nil {
+			
+	}
+	return &pb.ReconfigurationResponse{
+		Header:  cs.header(),
+		ConfIDs:confids,
+
+	}, nil
+}
 func (cs *ClusterServer) MemberRemove(ctx context.Context, r *pb.MemberRemoveRequest) (*pb.MemberRemoveResponse, error) {
 	membs, err := cs.server.RemoveMember(ctx, r.ID)
 	if err != nil {
@@ -66,6 +108,13 @@ func (cs *ClusterServer) MemberRemove(ctx context.Context, r *pb.MemberRemoveReq
 	return &pb.MemberRemoveResponse{Header: cs.header(), Members: membersToProtoMembers(membs)}, nil
 }
 
+func (cs *ClusterServer) LearnerRemove(ctx context.Context, r *pb.LearnerRemoveRequest) (*pb.LearnerRemoveResponse, error) {
+	learns, err := cs.server.RemoveLearner(ctx, r.ID)
+	if err != nil {
+		return nil, togRPCError(err)
+	}
+	return &pb.LearnerRemoveResponse{Header: cs.header(), Learners: learnersToProtoLearners(learns)}, nil
+}
 func (cs *ClusterServer) MemberUpdate(ctx context.Context, r *pb.MemberUpdateRequest) (*pb.MemberUpdateResponse, error) {
 	m := membership.Member{
 		ID:             types.ID(r.ID),
@@ -80,7 +129,8 @@ func (cs *ClusterServer) MemberUpdate(ctx context.Context, r *pb.MemberUpdateReq
 
 func (cs *ClusterServer) MemberList(ctx context.Context, r *pb.MemberListRequest) (*pb.MemberListResponse, error) {
 	membs := membersToProtoMembers(cs.cluster.Members())
-	return &pb.MemberListResponse{Header: cs.header(), Members: membs}, nil
+	learns := learnersToProtoLearners(cs.cluster.Learners())
+	return &pb.MemberListResponse{Header: cs.header(), Members: membs, Learners: learns}, nil
 }
 
 func (cs *ClusterServer) header() *pb.ResponseHeader {
@@ -98,4 +148,43 @@ func membersToProtoMembers(membs []*membership.Member) []*pb.Member {
 		}
 	}
 	return protoMembs
+}
+
+func learnersToProtoLearners(learns []*membership.Learner) []*pb.Learner {
+	//var startedLearners uint64
+	/*if len(learns)==0 {
+		protoLearns := make([]*pb.Learner, 1)
+		for i := range learns {
+			protoLearns[i] = &pb.Learner{
+				Name:       learns[i].Name,
+				ID:         uint64(learns[i].ID),
+				PeerURLs:   learns[i].PeerURLs,
+				ClientURLs: learns[i].ClientURLs,
+			}
+		}
+		return protoLearns
+	} else {*/
+		protoLearns := make([]*pb.Learner, len(learns))
+		fmt.Print("protolearns length is",len(learns),"\n")
+		for i := range learns {
+			protoLearns[i] = &pb.Learner{
+				Name:       learns[i].Name,
+				ID:         uint64(learns[i].ID),
+				PeerURLs:   learns[i].PeerURLs,
+				ClientURLs: learns[i].ClientURLs,
+			}
+		}
+		return protoLearns
+	//}
+	//protoLearns := make([]*pb.Learner, len(learns))
+	
+}
+func learnerToProtoLearner(learn *membership.Learner) *pb.Learner {
+		protoLearn := &pb.Learner{
+			Name:       learn.Name,
+			ID:         uint64(learn.ID),
+			PeerURLs:   learn.PeerURLs,
+			ClientURLs: learn.ClientURLs,
+		}
+	return protoLearn
 }

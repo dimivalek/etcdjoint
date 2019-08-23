@@ -20,8 +20,11 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"log"
+	"os"
 	"strings"
 	"time"
+	"strconv"
 )
 
 const (
@@ -57,13 +60,27 @@ type Stats struct {
 	Total      time.Duration
 	ErrorDist  map[string]int
 	Lats       []float64
+	Latencies  []float64 //latencies per operation
+	Throughputs []float64 // throughput per second
+	NinetyninePercentile []float64
+	Interval []float64
+	NinetyninePointNinePercentile[]float64
+	NinetyninePercentileAfter []float64
+	NinetyninePointNinePercentileAfter []float64
 	TimeSeries TimeSeries
 }
+
+/*type Stat struct{
+	Latency    float64 //latency per operation
+	Throughput float64 // throughput per second	
+	
+}*/
 
 func (s *Stats) copy() Stats {
 	ss := *s
 	ss.ErrorDist = copyMap(ss.ErrorDist)
 	ss.Lats = copyFloats(ss.Lats)
+	//ss.Throughputs = copyFloats(ss.Throughputs)
 	return ss
 }
 
@@ -107,7 +124,6 @@ func (r *report) Run() <-chan string {
 	}()
 	return donec
 }
-
 func (r *report) Stats() <-chan Stats {
 	donec := make(chan Stats, 1)
 	go func() {
@@ -146,7 +162,15 @@ func (r *report) String() (s string) {
 		s += fmt.Sprintf("  Stddev:\t%s.\n", r.sec2str(r.stats.Stddev))
 		s += fmt.Sprintf("  Requests/sec:\t"+r.precision+"\n", r.stats.RPS)
 		s += r.histogram()
-		s += r.sprintLatencies()
+		//s += r.sprintLatencies()
+		//s += r.sprintThroughputs()
+		s += r.sprintLatenciesPercentiles()
+		r.writeLatencies()
+		r.writeThroughputs()
+		r.writeNinetynine()
+		r.writeNinetynineAfter()
+		r.writeNinetyninePointNine()
+		r.writeNinetyninePointNineAfter()
 		if r.sps != nil {
 			s += fmt.Sprintf("%v\n", r.sps.getTimeSeries())
 		}
@@ -169,10 +193,10 @@ func (r *reportRate) String() string {
 	return fmt.Sprintf(" Requests/sec:\t"+r.precision+"\n", r.stats.RPS)
 }
 
-func (r *report) processResult(res *Result) {
+func (r *report) processResult(res *Result) float64{
 	if res.Err != nil {
 		r.stats.ErrorDist[res.Err.Error()]++
-		return
+		return 0
 	}
 	dur := res.Duration()
 	r.stats.Lats = append(r.stats.Lats, dur.Seconds())
@@ -180,12 +204,62 @@ func (r *report) processResult(res *Result) {
 	if r.sps != nil {
 		r.sps.Add(res.Start, dur)
 	}
+	return dur.Seconds()
 }
 
 func (r *report) processResults() {
+	var /*opspersec,*/seconds, totaldur, dur,/*,totaltime,*/pointer float64
+	var j,i, pointerninetynine, pointerninetyninedotnine, k, counterafter, counter int
+	var elapsed/*,elapsed1*/ time.Duration
+	//var timestart time.Time
+	k = 1
+	i = 0
 	st := time.Now()
+	r.stats.Throughputs = make([]float64, 17000)
+	r.stats.Latencies = make([]float64, 17000)
+	r.stats.NinetyninePercentile = make([]float64, 17000)
+	r.stats.Interval = make([]float64, 17000)
+	r.stats.NinetyninePointNinePercentile = make([]float64, 17000)
+	r.stats.NinetyninePercentileAfter = make([]float64, 17000)
+	r.stats.NinetyninePointNinePercentileAfter = make([]float64, 17000)
 	for res := range r.results {
-		r.processResult(&res)
+		dur = r.processResult(&res)
+		r.stats.Interval[i] = dur
+		counter = counter + 1
+		i = i + 1
+		totaldur += dur
+		elapsed = time.Since(st)	
+		seconds = elapsed.Seconds()
+		//timestart = time.Now()
+		//elapsed1 = time.Since(timestart)
+		//miliseconds1 = elapsed1.Seconds()
+		//totaltime = totaltime + miliseconds1
+		if seconds >= float64(k) {
+			//seconds = elapsed.Seconds()
+			//opspersec = float64(i-1)/ miliseconds
+			sort.Float64s(r.stats.Interval)
+			pointerninetynine = int(len(r.stats.Interval)*99/100)
+			pointer = float64(len(r.stats.Interval))*99.9/100
+			pointerninetyninedotnine = int(pointer)
+			r.stats.NinetyninePercentile[k-1] = r.stats.Interval[pointerninetynine-1]
+			r.stats.NinetyninePointNinePercentile[k-1] = r.stats.Interval[pointerninetyninedotnine-1]
+			if counter>2499999{
+				r.stats.NinetyninePercentileAfter[counterafter] = r.stats.Interval[pointerninetynine-1]
+				r.stats.NinetyninePointNinePercentileAfter[counterafter] = r.stats.Interval[pointerninetyninedotnine-1]
+				counterafter += 1
+			}
+			r.stats.Throughputs[j] = float64(i-1)
+			r.stats.Latencies[j] = totaldur/float64(i)
+			//miliseconds = 0
+			//totaltime =0
+			j = j + 1
+			i = 0
+			totaldur = 0
+			k = k + 1
+			r.stats.Interval = nil
+			r.stats.Interval = make([]float64, 17000)
+			
+		}
 	}
 	r.stats.Total = time.Since(st)
 
@@ -196,11 +270,16 @@ func (r *report) processResults() {
 		r.stats.Stddev += dev * dev
 	}
 	r.stats.Stddev = math.Sqrt(r.stats.Stddev / float64(len(r.stats.Lats)))
+	//r.stats.Latencies = copyFloats(r.stats.Lats)
 	sort.Float64s(r.stats.Lats)
 	if len(r.stats.Lats) > 0 {
 		r.stats.Fastest = r.stats.Lats[0]
 		r.stats.Slowest = r.stats.Lats[len(r.stats.Lats)-1]
 	}
+	//sort.Float64s(r.stats.NinetyninePointNinePercentile)
+	//sort.Float64s(r.stats.NinetyninePercentile)
+	//sort.Float64s(r.stats.NinetyninePointNinePercentileAfter)
+	//sort.Float64s(r.stats.NinetyninePercentileAfter)
 }
 
 var pctls = []float64{10, 25, 50, 75, 90, 95, 99, 99.9}
@@ -224,7 +303,7 @@ func percentiles(nums []float64) (data []float64) {
 	return data
 }
 
-func (r *report) sprintLatencies() string {
+func (r *report) sprintLatenciesPercentiles() string {
 	data := percentiles(r.stats.Lats)
 	s := fmt.Sprintf("\nLatency distribution:\n")
 	for i := 0; i < len(pctls); i++ {
@@ -233,6 +312,87 @@ func (r *report) sprintLatencies() string {
 		}
 	}
 	return s
+}
+
+func (r *report) writeLatencies() {
+	file, err := os.Create("latencies.txt")
+    	if err != nil {
+        	log.Fatal("Cannot create file", err)
+    	}
+	defer file.Close()
+	//s := fmt.Sprintf("\nLatencies per every operation:\n")
+	for i,_ := range r.stats.Latencies {
+		 s := strconv.FormatFloat((r.stats.Latencies[i]), 'f', -1, 64)
+		 file.WriteString(s+"\n")
+	} 
+
+}
+
+func (r *report) writeNinetynine() {
+	file, err := os.Create("ninetynine.txt")
+    	if err != nil {
+        	log.Fatal("Cannot create file", err)
+    	}
+	defer file.Close()
+	//s := fmt.Sprintf("\nLatencies per every operation:\n")
+	for i,_ := range r.stats.NinetyninePercentile {
+		 s := strconv.FormatFloat((r.stats.NinetyninePercentile[i]), 'f', -1, 64)
+		 file.WriteString(s+"\n")
+	} 
+
+}
+
+func (r *report) writeNinetynineAfter() {
+	file, err := os.Create("ninetynineafter.txt")
+    	if err != nil {
+        	log.Fatal("Cannot create file", err)
+    	}
+	defer file.Close()
+	//s := fmt.Sprintf("\nLatencies per every operation:\n")
+	for i,_ := range r.stats.NinetyninePercentileAfter {
+		 s := strconv.FormatFloat((r.stats.NinetyninePercentileAfter[i]), 'f', -1, 64)
+		 file.WriteString(s+"\n")
+	} 
+
+}
+func (r *report) writeNinetyninePointNineAfter() {
+	file, err := os.Create("ninetyninepointnineafter.txt")
+    	if err != nil {
+        	log.Fatal("Cannot create file", err)
+    	}
+	defer file.Close()
+	//s := fmt.Sprintf("\nLatencies per every operation:\n")
+	for i,_ := range r.stats.NinetyninePointNinePercentileAfter {
+		 s := strconv.FormatFloat((r.stats.NinetyninePointNinePercentileAfter[i]), 'f', -1, 64)
+		 file.WriteString(s+"\n")
+	} 
+
+}
+
+func (r *report) writeNinetyninePointNine() {
+	file, err := os.Create("ninetyninepointnine.txt")
+    	if err != nil {
+        	log.Fatal("Cannot create file", err)
+    	}
+	defer file.Close()
+	//s := fmt.Sprintf("\nLatencies per every operation:\n")
+	for i,_ := range r.stats.NinetyninePointNinePercentile {
+		 s := strconv.FormatFloat((r.stats.NinetyninePointNinePercentile[i]), 'f', -1, 64)
+		 file.WriteString(s+"\n")
+	} 
+
+}
+func (r *report) writeThroughputs() {
+	file, err := os.Create("throughputs.txt")
+    	if err != nil {
+        	log.Fatal("Cannot create file", err)
+    	}
+	defer file.Close()
+	//s := fmt.Sprintf("\nthroughput per second:\n")
+	for i,_ := range r.stats.Throughputs {
+		 s := strconv.FormatFloat((r.stats.Throughputs[i]), 'f', -1, 64)
+		 file.WriteString(s+"\n")
+	} 
 }
 
 func (r *report) histogram() string {

@@ -23,9 +23,10 @@ import (
 )
 
 var memberPeerURLs string
-
+//var learnerPeerURLs string
 // NewMemberCommand returns the cobra command for "member".
 func NewMemberCommand() *cobra.Command {
+	//fmt.Print(" ******NewMember command \n")
 	mc := &cobra.Command{
 		Use:   "member <subcommand>",
 		Short: "Membership related commands",
@@ -35,12 +36,13 @@ func NewMemberCommand() *cobra.Command {
 	mc.AddCommand(NewMemberRemoveCommand())
 	mc.AddCommand(NewMemberUpdateCommand())
 	mc.AddCommand(NewMemberListCommand())
-
+	//mc.AddCommand(NewLearnerListCommand())
 	return mc
 }
 
 // NewMemberAddCommand returns the cobra command for "member add".
 func NewMemberAddCommand() *cobra.Command {
+	//fmt.Print(" *****newmemberadd command \n")
 	cc := &cobra.Command{
 		Use:   "add <memberName> [options]",
 		Short: "Adds a member into the cluster",
@@ -93,9 +95,23 @@ The items in the lists are ID, Status, Name, Peer Addrs, Client Addrs.
 
 	return cc
 }
+/*func NewLearnerListCommand() *cobra.Command {
+	cc := &cobra.Command{
+		Use:   "list",
+		Short: "Lists all learners in the cluster",
+		Long: `When --write-out is set to simple, this command prints out comma-separated learner lists for each endpoint.
+The items in the lists are ID, Status, Name, Peer Addrs, Client Addrs.
+`,
+
+		Run: learnerListCommandFunc,
+	}
+
+	return cc
+}*/
 
 // memberAddCommandFunc executes the "member add" command.
 func memberAddCommandFunc(cmd *cobra.Command, args []string) {
+	//fmt.Print(" memberadd command func command \n")
 	if len(args) != 1 {
 		ExitWithError(ExitBadArgs, fmt.Errorf("member name not provided."))
 	}
@@ -215,3 +231,13 @@ func memberListCommandFunc(cmd *cobra.Command, args []string) {
 
 	display.MemberList(*resp)
 }
+/*func learnerListCommandFunc(cmd *cobra.Command, args []string) {
+	ctx, cancel := commandCtx(cmd)
+	resp, err := mustClientFromCmd(cmd).LearnerList(ctx)
+	cancel()
+	if err != nil {
+		ExitWithError(ExitError, err)
+	}
+
+	display.LearnerList(*resp)
+}*/

@@ -56,7 +56,7 @@ var (
 
 func startEtcdOrProxyV2() {
 	grpc.EnableTracing = false
-
+	fmt.Print("compile changes do pass here \n")
 	cfg := newConfig()
 	defaultInitialCluster := cfg.ec.InitialCluster
 

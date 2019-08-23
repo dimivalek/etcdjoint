@@ -20,6 +20,7 @@ import (
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
 
 	"google.golang.org/grpc"
+	"fmt"
 )
 
 type cls2clc struct{ cls pb.ClusterServer }
@@ -32,14 +33,36 @@ func (s *cls2clc) MemberList(ctx context.Context, r *pb.MemberListRequest, opts 
 	return s.cls.MemberList(ctx, r)
 }
 
+///////////////////////////////////
+/*func (s *cls2clc) LearnerList(ctx context.Context, r *pb.LearnerListRequest, opts ...grpc.CallOption) (*pb.LearnerListResponse, error) {
+	fmt.Print(" learner add etcd/proxy/grpcproxy/adapter/cluster_client_adapter \n")
+	return s.cls.LearnerList(ctx, r)
+}*/
+
 func (s *cls2clc) MemberAdd(ctx context.Context, r *pb.MemberAddRequest, opts ...grpc.CallOption) (*pb.MemberAddResponse, error) {
 	return s.cls.MemberAdd(ctx, r)
+}
+
+///////////////////////////////////
+func (s *cls2clc) LearnerAdd(ctx context.Context, r *pb.LearnerAddRequest, opts ...grpc.CallOption) (*pb.LearnerAddResponse, error) {
+	fmt.Print(" learner add etcd/proxy/grpcproxy/adapter/cluster_client_adapter \n")
+	return s.cls.LearnerAdd(ctx, r)
+}
+
+func (s *cls2clc) Reconfiguration(ctx context.Context, r *pb.ReconfigurationRequest, opts ...grpc.CallOption) (*pb.ReconfigurationResponse, error) {
+	fmt.Print(" Reconfiguration etcd/proxy/grpcproxy/adapter/cluster_client_adapter \n")
+	return s.cls.Reconfiguration(ctx, r)
 }
 
 func (s *cls2clc) MemberUpdate(ctx context.Context, r *pb.MemberUpdateRequest, opts ...grpc.CallOption) (*pb.MemberUpdateResponse, error) {
 	return s.cls.MemberUpdate(ctx, r)
 }
 
+
 func (s *cls2clc) MemberRemove(ctx context.Context, r *pb.MemberRemoveRequest, opts ...grpc.CallOption) (*pb.MemberRemoveResponse, error) {
 	return s.cls.MemberRemove(ctx, r)
+}
+
+func (s *cls2clc) LearnerRemove(ctx context.Context, r *pb.LearnerRemoveRequest, opts ...grpc.CallOption) (*pb.LearnerRemoveResponse, error) {
+	return s.cls.LearnerRemove(ctx, r)
 }

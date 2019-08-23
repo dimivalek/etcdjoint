@@ -5,7 +5,7 @@ package etcdserverpb
 
 import (
 	"fmt"
-
+	//"strconv"
 	proto "github.com/golang/protobuf/proto"
 
 	math "math"
@@ -220,6 +220,8 @@ type ResponseHeader struct {
 	// member_id is the ID of the member which sent the response.
 	MemberId uint64 `protobuf:"varint,2,opt,name=member_id,json=memberId,proto3" json:"member_id,omitempty"`
 	// revision is the key-value store revision when the request was applied.
+	LearnerId uint64 `protobuf:"varint,2,opt,name=learner_id,json=learnerId,proto3" json:"learner_id,omitempty"`
+	// revision is the key-value store revision when the request was applied.
 	Revision int64 `protobuf:"varint,3,opt,name=revision,proto3" json:"revision,omitempty"`
 	// raft_term is the raft term when the request was applied.
 	RaftTerm uint64 `protobuf:"varint,4,opt,name=raft_term,json=raftTerm,proto3" json:"raft_term,omitempty"`
@@ -240,6 +242,13 @@ func (m *ResponseHeader) GetClusterId() uint64 {
 func (m *ResponseHeader) GetMemberId() uint64 {
 	if m != nil {
 		return m.MemberId
+	}
+	return 0
+}
+
+func (m *ResponseHeader) GetLearnerId() uint64 {
+	if m != nil {
+		return m.LearnerId
 	}
 	return 0
 }
@@ -2156,6 +2165,22 @@ func (m *MemberRemoveRequest) GetID() uint64 {
 	return 0
 }
 
+type LearnerRemoveRequest struct {
+	// ID is the member ID of the member to remove.
+	ID uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+}
+
+func (m *LearnerRemoveRequest) Reset()                    { *m = LearnerRemoveRequest{} }
+func (m *LearnerRemoveRequest) String() string            { return proto.CompactTextString(m) }
+func (*LearnerRemoveRequest) ProtoMessage()               {}
+func (*LearnerRemoveRequest) Descriptor() ([]byte, []int) { return fileDescriptorRpc, []int{38} }
+
+func (m *LearnerRemoveRequest) GetID() uint64 {
+	if m != nil {
+		return m.ID
+	}
+	return 0
+}
 type MemberRemoveResponse struct {
 	Header *ResponseHeader `protobuf:"bytes,1,opt,name=header" json:"header,omitempty"`
 	// members is a list of all members after removing the member.
@@ -2181,6 +2206,175 @@ func (m *MemberRemoveResponse) GetMembers() []*Member {
 	return nil
 }
 
+type LearnerRemoveResponse struct {
+	Header *ResponseHeader `protobuf:"bytes,1,opt,name=header" json:"header,omitempty"`
+	// members is a list of all members after removing the member.
+	Learners []*Learner `protobuf:"bytes,2,rep,name=learners" json:"members,omitempty"`
+}
+
+func (m *LearnerRemoveResponse) Reset()                    { *m = LearnerRemoveResponse{} }
+func (m *LearnerRemoveResponse) String() string            { return proto.CompactTextString(m) }
+func (*LearnerRemoveResponse) ProtoMessage()               {}
+func (*LearnerRemoveResponse) Descriptor() ([]byte, []int) { return fileDescriptorRpc, []int{39} }
+
+func (m *LearnerRemoveResponse) GetHeader() *ResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return nil
+}
+
+func (m *LearnerRemoveResponse) GetLearners() []*Learner {
+	if m != nil {
+		return m.Learners
+	}
+	return nil
+}
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+type Learner struct {
+	// ID is the learner ID for this learner.
+	ID uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	// name is the human-readable name of the member. If the member is not started, the name will be an empty string.
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	// peerURLs is the list of URLs the learner exposes to the cluster for communication.
+	PeerURLs []string `protobuf:"bytes,3,rep,name=peerURLs" json:"peerURLs,omitempty"`
+	// clientURLs is the list of URLs the learner exposes to clients for communication. If the learner is not started, clientURLs 		will be empty.
+	ClientURLs []string `protobuf:"bytes,4,rep,name=clientURLs" json:"clientURLs,omitempty"`
+}
+
+func (m *Learner) Reset()                    { *m = Learner{} }
+func (m *Learner) String() string            { return proto.CompactTextString(m) }
+func (*Learner) ProtoMessage()               {}
+func (*Learner) Descriptor() ([]byte, []int) { return fileDescriptorRpc, []int{35} }
+
+func (m *Learner) GetID() uint64 {
+	if m != nil {
+		return m.ID
+	}
+	return 0
+}
+
+func (m *Learner) GetName() string {
+	if m != nil {
+		return m.Name
+	}
+	return ""
+}
+
+func (m *Learner) GetPeerURLs() []string {
+	if m != nil {
+		return m.PeerURLs
+	}
+	return nil
+}
+
+func (m *Learner) GetClientURLs() []string {
+	if m != nil {
+		return m.ClientURLs
+	}
+	return nil
+}
+
+type LearnerAddRequest struct {
+	// peerURLs is the list of URLs the added learner will use to communicate with the cluster.
+	PeerURLs []string `protobuf:"bytes,1,rep,name=peerURLs" json:"peerURLs,omitempty"`
+}
+
+type ReconfigurationRequest struct {
+	ConfIDs []uint64 `protobuf:"varint,1,rep,packed,name=ConfIDs" json:"ConfIDs,omitempty"`
+}
+
+func (m *ReconfigurationRequest) Reset()                    { *m = ReconfigurationRequest{} }
+func (m *ReconfigurationRequest) String() string            { return proto.CompactTextString(m) }
+func (*ReconfigurationRequest) ProtoMessage()               {}
+func (*ReconfigurationRequest) Descriptor() ([]byte, []int) { return fileDescriptorRpc, []int{36} }
+
+func (m *ReconfigurationRequest) GetConfIDs() []uint64 {
+	if m != nil {
+		return m.ConfIDs
+	}
+	return nil
+}
+
+func (m *LearnerAddRequest) Reset()                    { *m = LearnerAddRequest{} }
+func (m *LearnerAddRequest) String() string            { return proto.CompactTextString(m) }
+func (*LearnerAddRequest) ProtoMessage()               {}
+func (*LearnerAddRequest) Descriptor() ([]byte, []int) { return fileDescriptorRpc, []int{36} }
+
+func (m *LearnerAddRequest) GetPeerURLs() []string {
+	if m != nil {
+		return m.PeerURLs
+	}
+	return nil
+}
+
+type LearnerAddResponse struct {
+	Header *ResponseHeader `protobuf:"bytes,1,opt,name=header" json:"header,omitempty"`
+	// learner is the learner information for the added learner.
+	Learner *Learner `protobuf:"bytes,2,opt,name=learner" json:"learner,omitempty"`
+	// members is a list of all learners after adding the new learner.
+	//Members []*Member `protobuf:"bytes,3,rep,name=members" json:"members,omitempty"`
+	Learners []*Learner `protobuf:"bytes,4,rep,name=learners" json:"learners,omitempty"`
+}
+
+func (m *LearnerAddResponse) Reset()                    { *m = LearnerAddResponse{} }
+func (m *LearnerAddResponse) String() string            { return proto.CompactTextString(m) }
+func (*LearnerAddResponse) ProtoMessage()               {}
+func (*LearnerAddResponse) Descriptor() ([]byte, []int) { return fileDescriptorRpc, []int{37} }
+
+type ReconfigurationResponse struct {
+	Header *ResponseHeader `protobuf:"bytes,1,opt,name=header" json:"header,omitempty"`
+	ConfIDs []uint64 `protobuf:"bytes,2,rep,name=ConfIDs" json:"confids,omitempty"`
+}
+
+
+
+func (m *ReconfigurationResponse) Reset()                    { *m = ReconfigurationResponse{} }
+func (m *ReconfigurationResponse) String() string            { return proto.CompactTextString(m) }
+func (*ReconfigurationResponse) ProtoMessage()               {}
+func (*ReconfigurationResponse) Descriptor() ([]byte, []int) { return fileDescriptorRpc, []int{37} }
+
+
+func (m *ReconfigurationResponse) GetHeader() *ResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return nil
+}
+func (m *ReconfigurationResponse) GetConfIDs() []uint64 {
+	if m != nil {
+		return m.ConfIDs
+	}
+	return nil
+}
+
+func (m *LearnerAddResponse) GetHeader() *ResponseHeader {
+	if m != nil {
+		return m.Header
+	}
+	return nil
+}
+
+func (m *LearnerAddResponse) GetLearner() *Learner {
+	if m != nil {
+		return m.Learner
+	}
+	return nil
+}
+
+func (m *LearnerAddResponse) GetLearners() []*Learner {
+	if m != nil {
+		return m.Learners
+	}
+	return nil
+}
+
+/*func (m *LearnerAddResponse) GetLearners() []*Learner {
+	if m != nil {
+		return m.Learners
+	}
+	return nil
+}*/
 type MemberUpdateRequest struct {
 	// ID is the member ID of the member to update.
 	ID uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
@@ -2244,6 +2438,7 @@ type MemberListResponse struct {
 	Header *ResponseHeader `protobuf:"bytes,1,opt,name=header" json:"header,omitempty"`
 	// members is a list of all members associated with the cluster.
 	Members []*Member `protobuf:"bytes,2,rep,name=members" json:"members,omitempty"`
+	Learners []*Learner `protobuf:"bytes,3,rep,name=learners" json:"learners,omitempty"`
 }
 
 func (m *MemberListResponse) Reset()                    { *m = MemberListResponse{} }
@@ -2261,6 +2456,13 @@ func (m *MemberListResponse) GetHeader() *ResponseHeader {
 func (m *MemberListResponse) GetMembers() []*Member {
 	if m != nil {
 		return m.Members
+	}
+	return nil
+}
+
+func (m *MemberListResponse) GetLearners() []*Learner {
+	if m != nil {
+		return m.Learners
 	}
 	return nil
 }
@@ -3124,8 +3326,15 @@ func init() {
 	proto.RegisterType((*Member)(nil), "etcdserverpb.Member")
 	proto.RegisterType((*MemberAddRequest)(nil), "etcdserverpb.MemberAddRequest")
 	proto.RegisterType((*MemberAddResponse)(nil), "etcdserverpb.MemberAddResponse")
+	proto.RegisterType((*Learner)(nil), "etcdserverpb.Learner")
+	proto.RegisterType((*LearnerAddRequest)(nil), "etcdserverpb.LearnerAddRequest")
+	proto.RegisterType((*LearnerAddResponse)(nil), "etcdserverpb.LearnerAddResponse")
+	proto.RegisterType((*ReconfigurationRequest)(nil), "etcdserverpb.ReconfigurationRequest")
+	proto.RegisterType((*ReconfigurationResponse)(nil), "etcdserverpb.ReconfigurationResponse")
 	proto.RegisterType((*MemberRemoveRequest)(nil), "etcdserverpb.MemberRemoveRequest")
 	proto.RegisterType((*MemberRemoveResponse)(nil), "etcdserverpb.MemberRemoveResponse")
+	proto.RegisterType((*LearnerRemoveRequest)(nil), "etcdserverpb.LearnerRemoveRequest")
+	proto.RegisterType((*LearnerRemoveResponse)(nil), "etcdserverpb.LearnerRemoveResponse")
 	proto.RegisterType((*MemberUpdateRequest)(nil), "etcdserverpb.MemberUpdateRequest")
 	proto.RegisterType((*MemberUpdateResponse)(nil), "etcdserverpb.MemberUpdateResponse")
 	proto.RegisterType((*MemberListRequest)(nil), "etcdserverpb.MemberListRequest")
@@ -3770,10 +3979,17 @@ type ClusterClient interface {
 	MemberAdd(ctx context.Context, in *MemberAddRequest, opts ...grpc.CallOption) (*MemberAddResponse, error)
 	// MemberRemove removes an existing member from the cluster.
 	MemberRemove(ctx context.Context, in *MemberRemoveRequest, opts ...grpc.CallOption) (*MemberRemoveResponse, error)
+	LearnerRemove(ctx context.Context, in *LearnerRemoveRequest, opts ...grpc.CallOption) (*LearnerRemoveResponse, error)
 	// MemberUpdate updates the member configuration.
 	MemberUpdate(ctx context.Context, in *MemberUpdateRequest, opts ...grpc.CallOption) (*MemberUpdateResponse, error)
 	// MemberList lists all the members in the cluster.
 	MemberList(ctx context.Context, in *MemberListRequest, opts ...grpc.CallOption) (*MemberListResponse, error)
+	// LearnerAdd adds a learner into the wide cluster.
+	LearnerAdd(ctx context.Context, in *LearnerAddRequest, opts ...grpc.CallOption) (*LearnerAddResponse, error)
+	// LearnerList lists all the members in the cluster.
+	//LearnerList(ctx context.Context, in *LearnerListRequest, opts ...grpc.CallOption) (*LearnerListResponse, error)
+
+	Reconfiguration(ctx context.Context, in *ReconfigurationRequest, opts ...grpc.CallOption) (*ReconfigurationResponse, error)
 }
 
 type clusterClient struct {
@@ -3793,6 +4009,27 @@ func (c *clusterClient) MemberAdd(ctx context.Context, in *MemberAddRequest, opt
 	return out, nil
 }
 
+func (c *clusterClient) LearnerAdd(ctx context.Context, in *LearnerAddRequest, opts ...grpc.CallOption) (*LearnerAddResponse, error) {
+	fmt.Print("Learner add etcd/etcdserver/rpc.pb \n")
+	out := new(LearnerAddResponse)
+	err := grpc.Invoke(ctx, "/etcdserverpb.Cluster/LearnerAdd", in, out, c.cc, opts...)
+	//fmt.Print("Learner add etcd/etcdserver/rpc.pb error \n")
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clusterClient) Reconfiguration(ctx context.Context, in *ReconfigurationRequest, opts ...grpc.CallOption) (*ReconfigurationResponse, error) {
+	fmt.Print("Reconfiguration etcd/etcdserver/rpc.pb \n")
+	out := new(ReconfigurationResponse)
+	err := grpc.Invoke(ctx, "/etcdserverpb.Cluster/Reconfiguration", in, out, c.cc, opts...)
+	//fmt.Print("Reconfiguration etcd/etcdserver/rpc.pb error \n")
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 func (c *clusterClient) MemberRemove(ctx context.Context, in *MemberRemoveRequest, opts ...grpc.CallOption) (*MemberRemoveResponse, error) {
 	out := new(MemberRemoveResponse)
 	err := grpc.Invoke(ctx, "/etcdserverpb.Cluster/MemberRemove", in, out, c.cc, opts...)
@@ -3801,7 +4038,14 @@ func (c *clusterClient) MemberRemove(ctx context.Context, in *MemberRemoveReques
 	}
 	return out, nil
 }
-
+func (c *clusterClient) LearnerRemove(ctx context.Context, in *LearnerRemoveRequest, opts ...grpc.CallOption) (*LearnerRemoveResponse, error) {
+	out := new(LearnerRemoveResponse)
+	err := grpc.Invoke(ctx, "/etcdserverpb.Cluster/LearnerRemove", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
 func (c *clusterClient) MemberUpdate(ctx context.Context, in *MemberUpdateRequest, opts ...grpc.CallOption) (*MemberUpdateResponse, error) {
 	out := new(MemberUpdateResponse)
 	err := grpc.Invoke(ctx, "/etcdserverpb.Cluster/MemberUpdate", in, out, c.cc, opts...)
@@ -3827,10 +4071,16 @@ type ClusterServer interface {
 	MemberAdd(context.Context, *MemberAddRequest) (*MemberAddResponse, error)
 	// MemberRemove removes an existing member from the cluster.
 	MemberRemove(context.Context, *MemberRemoveRequest) (*MemberRemoveResponse, error)
+	LearnerRemove(context.Context, *LearnerRemoveRequest) (*LearnerRemoveResponse, error)
 	// MemberUpdate updates the member configuration.
 	MemberUpdate(context.Context, *MemberUpdateRequest) (*MemberUpdateResponse, error)
 	// MemberList lists all the members in the cluster.
 	MemberList(context.Context, *MemberListRequest) (*MemberListResponse, error)
+
+	LearnerAdd(context.Context, *LearnerAddRequest) (*LearnerAddResponse, error)
+
+	//LearnerList(context.Context, *LearnerListRequest) (*LearnerListResponse, error)
+	Reconfiguration(context.Context, *ReconfigurationRequest) (*ReconfigurationResponse, error)
 }
 
 func RegisterClusterServer(s *grpc.Server, srv ClusterServer) {
@@ -3854,6 +4104,47 @@ func _Cluster_MemberAdd_Handler(srv interface{}, ctx context.Context, dec func(i
 	}
 	return interceptor(ctx, in, info, handler)
 }
+///////////////////////////////////////////////////////////
+func _Cluster_LearnerAdd_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LearnerAddRequest)
+	fmt.Print("LearnerAddRequest ",in,"\n")
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).LearnerAdd(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/etcdserverpb.Cluster/LearnerAdd",
+	}
+	fmt.Print("learner add etcd/etcdserver/rpc.pb handler \n")
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).LearnerAdd(ctx, req.(*LearnerAddRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Cluster_Reconfiguration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	fmt.Print("reconfiguration handler etcd/etcdserver/rpc.pb handler \n")
+	in := new(ReconfigurationRequest)
+	fmt.Print("ReconfigurationRequest ",in,"\n")
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).Reconfiguration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/etcdserverpb.Cluster/Reconfiguration",
+	}
+	fmt.Print("reconfiguration etcd/etcdserver/rpc.pb handler \n")
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).Reconfiguration(ctx, req.(*ReconfigurationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
 
 func _Cluster_MemberRemove_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(MemberRemoveRequest)
@@ -3873,6 +4164,23 @@ func _Cluster_MemberRemove_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Cluster_LearnerRemove_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LearnerRemoveRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).LearnerRemove(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/etcdserverpb.Cluster/LearnerRemove",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).LearnerRemove(ctx, req.(*LearnerRemoveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
 func _Cluster_MemberUpdate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(MemberUpdateRequest)
 	if err := dec(in); err != nil {
@@ -3908,7 +4216,24 @@ func _Cluster_MemberList_Handler(srv interface{}, ctx context.Context, dec func(
 	}
 	return interceptor(ctx, in, info, handler)
 }
-
+/////////////////////////////////////////////////
+/*func _Cluster_LearnerList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LearnerListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClusterServer).LearnerList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/etcdserverpb.Cluster/LearnerList",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClusterServer).LearnerList(ctx, req.(*LearnerListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}*/
 var _Cluster_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "etcdserverpb.Cluster",
 	HandlerType: (*ClusterServer)(nil),
@@ -3918,8 +4243,16 @@ var _Cluster_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Cluster_MemberAdd_Handler,
 		},
 		{
+			MethodName: "LearnerAdd",
+			Handler:    _Cluster_LearnerAdd_Handler,
+		},
+		{
 			MethodName: "MemberRemove",
 			Handler:    _Cluster_MemberRemove_Handler,
+		},
+		{
+			MethodName: "LearnerRemove",
+			Handler:    _Cluster_LearnerRemove_Handler,
 		},
 		{
 			MethodName: "MemberUpdate",
@@ -3929,6 +4262,14 @@ var _Cluster_serviceDesc = grpc.ServiceDesc{
 			MethodName: "MemberList",
 			Handler:    _Cluster_MemberList_Handler,
 		},
+		{		
+			MethodName: "Reconfiguration",
+			Handler:    _Cluster_Reconfiguration_Handler,
+		},
+		/*{
+			MethodName: "LearnerList",
+			Handler:    _Cluster_LearnerList_Handler,
+		},*/
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "rpc.proto",
@@ -4857,6 +5198,11 @@ func (m *ResponseHeader) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x10
 		i++
 		i = encodeVarintRpc(dAtA, i, uint64(m.MemberId))
+	}
+	if m.LearnerId != 0 {
+		dAtA[i] = 0x10
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.LearnerId))
 	}
 	if m.Revision != 0 {
 		dAtA[i] = 0x18
@@ -6428,6 +6774,65 @@ func (m *Member) MarshalTo(dAtA []byte) (int, error) {
 	}
 	return i, nil
 }
+/////////////////////////////////////////////////////////////////////
+func (m *Learner) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Learner) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.ID))
+	}
+	if len(m.Name) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(len(m.Name)))
+		i += copy(dAtA[i:], m.Name)
+	}
+	if len(m.PeerURLs) > 0 {
+		for _, s := range m.PeerURLs {
+			dAtA[i] = 0x1a
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if len(m.ClientURLs) > 0 {
+		for _, s := range m.ClientURLs {
+			dAtA[i] = 0x22
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	return i, nil
+}
 
 func (m *MemberAddRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
@@ -6461,6 +6866,76 @@ func (m *MemberAddRequest) MarshalTo(dAtA []byte) (int, error) {
 	}
 	return i, nil
 }
+///////////////////////////////////////////////////////////////////
+func (m *LearnerAddRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LearnerAddRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.PeerURLs) > 0 {
+		for _, s := range m.PeerURLs {
+			dAtA[i] = 0xa
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	return i, nil
+}
+/////////////////////////////////
+func (m *ReconfigurationRequest) Marshal() (dAtA []byte, err error) {
+	fmt.Print("marshall ReconfigurationRequest confids is",m.ConfIDs,"\n")
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ReconfigurationRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.ConfIDs) > 0 {
+		dAtA2 := make([]byte, len(m.ConfIDs)*10)
+		var j1 int
+		for _, num := range m.ConfIDs {
+			for num >= 1<<7 {
+				dAtA2[j1] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j1++
+			}
+			dAtA2[j1] = uint8(num)
+			j1++
+		}
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(j1))
+		i += copy(dAtA[i:], dAtA2[:j1])
+	}
+	return i, nil
+}
+
 
 func (m *MemberAddResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
@@ -6512,7 +6987,112 @@ func (m *MemberAddResponse) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+//////////////////////////////////////////////////////////////////
+func (m *LearnerAddResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *LearnerAddResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Header != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.Header.Size()))
+		n32, err := m.Header.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n32
+	}
+	if m.Learner != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.Learner.Size()))
+		n33, err := m.Learner.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n33
+	}
+	/*if len(m.Members) > 0 {
+		for _, msg := range m.Members {
+			dAtA[i] = 0x1a
+			i++
+			i = encodeVarintRpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}*/
+	return i, nil
+}
+////////////////////////////////////
+func (m *ReconfigurationResponse) Marshal() (dAtA []byte, err error) {
+	fmt.Print("ReconfigurationResponse marshal \n")
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ReconfigurationResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Header != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.Header.Size()))
+		n3, err := m.Header.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n3
+	}
+	if len(m.ConfIDs) > 0 {
+		dAtA5 := make([]byte, len(m.ConfIDs)*10)
+		var j4 int
+		for _, num := range m.ConfIDs {
+			for num >= 1<<7 {
+				dAtA5[j4] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j4++
+			}
+			dAtA5[j4] = uint8(num)
+			j4++
+		}
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(j4))
+		i += copy(dAtA[i:], dAtA5[:j4])
+	}
+	return i, nil
+}
 func (m *MemberRemoveRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+func (m *LearnerRemoveRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -6535,6 +7115,18 @@ func (m *MemberRemoveRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *LearnerRemoveRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.ID != 0 {
+		dAtA[i] = 0x8
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.ID))
+	}
+	return i, nil
+}
 func (m *MemberRemoveResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -6545,6 +7137,15 @@ func (m *MemberRemoveResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
+func (m *LearnerRemoveResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
 func (m *MemberRemoveResponse) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
@@ -6575,6 +7176,35 @@ func (m *MemberRemoveResponse) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *LearnerRemoveResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Header != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintRpc(dAtA, i, uint64(m.Header.Size()))
+		n34, err := m.Header.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n34
+	}
+	if len(m.Learners) > 0 {
+		for _, msg := range m.Learners {
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintRpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
 func (m *MemberUpdateRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -6690,15 +7320,27 @@ func (m *MemberListResponse) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintRpc(dAtA, i, uint64(m.Header.Size()))
-		n36, err := m.Header.MarshalTo(dAtA[i:])
+		n1, err := m.Header.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n36
+		i += n1
 	}
 	if len(m.Members) > 0 {
 		for _, msg := range m.Members {
 			dAtA[i] = 0x12
+			i++
+			i = encodeVarintRpc(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if len(m.Learners) > 0 {
+		for _, msg := range m.Learners {
+			dAtA[i] = 0x1a
 			i++
 			i = encodeVarintRpc(dAtA, i, uint64(msg.Size()))
 			n, err := msg.MarshalTo(dAtA[i:])
@@ -8632,7 +9274,56 @@ func (m *MemberAddRequest) Size() (n int) {
 	}
 	return n
 }
-
+////////////////////////////////////////
+func (m *Learner) Size() (n int) {
+	var l int
+	_ = l
+	if m.ID != 0 {
+		n += 1 + sovRpc(uint64(m.ID))
+	}
+	l = len(m.Name)
+	if l > 0 {
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if len(m.PeerURLs) > 0 {
+		for _, s := range m.PeerURLs {
+			l = len(s)
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	if len(m.ClientURLs) > 0 {
+		for _, s := range m.ClientURLs {
+			l = len(s)
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	return n
+}
+////////////////////////////////////////////////////////////
+func (m *LearnerAddRequest) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.PeerURLs) > 0 {
+		for _, s := range m.PeerURLs {
+			l = len(s)
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	return n
+}
+func (m *ReconfigurationRequest) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.ConfIDs) > 0 {
+		for _, s := range m.ConfIDs {
+			//var ss string
+			//ss = strconv.FormatUint(s,16) 
+			//l = len(ss)
+			n += 1 + l + sovRpc(uint64(s))
+		}
+	}
+	return n
+}
 func (m *MemberAddResponse) Size() (n int) {
 	var l int
 	_ = l
@@ -8653,6 +9344,43 @@ func (m *MemberAddResponse) Size() (n int) {
 	return n
 }
 
+//////////////////////////////////////////////
+func (m *LearnerAddResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Header != nil {
+		l = m.Header.Size()
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if m.Learner != nil {
+		l = m.Learner.Size()
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	/*if len(m.Members) > 0 {
+		for _, e := range m.Members {
+			l = e.Size()
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}*/
+	return n
+}
+func (m *ReconfigurationResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Header != nil {
+		l = m.Header.Size()
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if len(m.ConfIDs) > 0 {
+		for _, s := range m.ConfIDs {
+			//var ss string
+			//ss = strconv.FormatUint(s,16) 
+			//l = len(ss)
+			n += 1 + l + sovRpc(uint64(s))
+		}
+	}
+	return n
+}
 func (m *MemberRemoveRequest) Size() (n int) {
 	var l int
 	_ = l
@@ -8662,6 +9390,14 @@ func (m *MemberRemoveRequest) Size() (n int) {
 	return n
 }
 
+func (m *LearnerRemoveRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.ID != 0 {
+		n += 1 + sovRpc(uint64(m.ID))
+	}
+	return n
+}
 func (m *MemberRemoveResponse) Size() (n int) {
 	var l int
 	_ = l
@@ -8678,6 +9414,21 @@ func (m *MemberRemoveResponse) Size() (n int) {
 	return n
 }
 
+func (m *LearnerRemoveResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Header != nil {
+		l = m.Header.Size()
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if len(m.Learners) > 0 {
+		for _, e := range m.Learners {
+			l = e.Size()
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	return n
+}
 func (m *MemberUpdateRequest) Size() (n int) {
 	var l int
 	_ = l
@@ -8728,8 +9479,38 @@ func (m *MemberListResponse) Size() (n int) {
 			n += 1 + l + sovRpc(uint64(l))
 		}
 	}
+	
+	if len(m.Learners) > 0 {
+		for _, e := range m.Learners {
+			l = e.Size()
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
 	return n
 }
+
+/////////////////////////////////
+/*func (m *LearnerListRequest) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}*/
+////////////////////////////////
+/*func (m *LearnerListResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Header != nil {
+		l = m.Header.Size()
+		n += 1 + l + sovRpc(uint64(l))
+	}
+	if len(m.Learners) > 0 {
+		for _, e := range m.Learners {
+			l = e.Size()
+			n += 1 + l + sovRpc(uint64(l))
+		}
+	}
+	return n
+}*/
 
 func (m *DefragmentRequest) Size() (n int) {
 	var l int
@@ -13847,6 +14628,163 @@ func (m *Member) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+///////////////////////////////may need to remove//////////////////
+func (m *Learner) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Learner: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Learner: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ID |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Name = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PeerURLs", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PeerURLs = append(m.PeerURLs, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ClientURLs", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ClientURLs = append(m.ClientURLs, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *MemberAddRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -13926,6 +14864,201 @@ func (m *MemberAddRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+/////////////////////////////////////may need to remove///////////////
+func (m *LearnerAddRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LearnerAddRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LearnerAddRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PeerURLs", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.PeerURLs = append(m.PeerURLs, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+
+/////////////////////===============//////////////////
+func (m *ReconfigurationRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ReconfigurationRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ReconfigurationRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType == 0 {
+				var v uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpc
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.ConfIDs = append(m.ConfIDs, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpc
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= (int(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLengthRpc
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpc
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= (uint64(b) & 0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.ConfIDs = append(m.ConfIDs, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConfIDs", wireType)
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+
 func (m *MemberAddResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -14073,6 +15206,300 @@ func (m *MemberAddResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+////////////////////////////may need to remove///////////////////////
+func (m *LearnerAddResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LearnerAddResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LearnerAddResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Header == nil {
+				m.Header = &ResponseHeader{}
+			}
+			if err := m.Header.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Learner", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Learner == nil {
+				m.Learner = &Learner{}
+			}
+			if err := m.Learner.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Learners", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Learners = append(m.Learners, &Learner{})
+			if err := m.Learners[len(m.Learners)].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+//////////////////////////====================///////////////////
+func (m *ReconfigurationResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ReconfigurationResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ReconfigurationResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Header == nil {
+				m.Header = &ResponseHeader{}
+			}
+			if err := m.Header.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType == 0 {
+				var v uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpc
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= (uint64(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.ConfIDs = append(m.ConfIDs, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowRpc
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= (int(b) & 0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLengthRpc
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				for iNdEx < postIndex {
+					var v uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowRpc
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= (uint64(b) & 0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.ConfIDs = append(m.ConfIDs, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConfIDs", wireType)
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *MemberRemoveRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -14100,6 +15527,76 @@ func (m *MemberRemoveRequest) Unmarshal(dAtA []byte) error {
 		}
 		if fieldNum <= 0 {
 			return fmt.Errorf("proto: MemberRemoveRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ID", wireType)
+			}
+			m.ID = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.ID |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+
+func (m *LearnerRemoveRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LearnerRemoveRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LearnerRemoveRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -14232,6 +15729,121 @@ func (m *MemberRemoveResponse) Unmarshal(dAtA []byte) error {
 			}
 			m.Members = append(m.Members, &Member{})
 			if err := m.Members[len(m.Members)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipRpc(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthRpc
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+
+func (m *LearnerRemoveResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowRpc
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: LearnerRemoveResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: LearnerRemoveResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Header == nil {
+				m.Header = &ResponseHeader{}
+			}
+			if err := m.Header.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Members", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Learners = append(m.Learners, &Learner{})
+			if err := m.Learners[len(m.Learners)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -14608,6 +16220,37 @@ func (m *MemberListResponse) Unmarshal(dAtA []byte) error {
 			}
 			m.Members = append(m.Members, &Member{})
 			if err := m.Members[len(m.Members)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Learners", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowRpc
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthRpc
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Learners = append(m.Learners, &Learner{})
+			if err := m.Learners[len(m.Learners)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

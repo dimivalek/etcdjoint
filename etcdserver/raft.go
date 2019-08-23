@@ -21,7 +21,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
+	"fmt"
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
 	"github.com/coreos/etcd/etcdserver/membership"
 	"github.com/coreos/etcd/pkg/contention"
@@ -48,7 +48,7 @@ const (
 	maxSizePerMsg = 1 * 1024 * 1024
 	// Never overflow the rafthttp buffer, which is 4096.
 	// TODO: a better const?
-	maxInflightMsgs = 4096 / 8
+	maxInflightMsgs = 4096/8
 )
 
 var (
@@ -153,11 +153,11 @@ func newRaftNode(cfg raftNodeConfig) *raftNode {
 // to modify the fields after it has been started.
 func (r *raftNode) start(rh *raftReadyHandler) {
 	internalTimeout := time.Second
-
+	fmt.Print("start server/raft.go \n")
 	go func() {
 		defer r.onStop()
 		islead := false
-
+		isleadjoint := false
 		for {
 			select {
 			case <-r.ticker.C:
@@ -176,7 +176,8 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 					}
 
 					atomic.StoreUint64(&r.lead, rd.SoftState.Lead)
-					islead = rd.RaftState == raft.StateLeader
+					islead = rd.RaftState == raft.StateLeader 
+					isleadjoint = rd.RaftState== raft.StateJointLeader
 					rh.updateLeadership(newLeader)
 					r.td.Reset()
 				}
@@ -209,7 +210,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 				// the leader can write to its disk in parallel with replicating to the followers and them
 				// writing to their disks.
 				// For more details, check raft thesis 10.2.1
-				if islead {
+				if islead || isleadjoint{
 					// gofail: var raftBeforeLeaderSend struct{}
 					r.transport.Send(r.processMessages(rd.Messages))
 				}
@@ -239,7 +240,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 
 				r.raftStorage.Append(rd.Entries)
 
-				if !islead {
+				if !islead && !isleadjoint  {
 					// finish processing incoming messages before we signal raftdone chan
 					msgs := r.processMessages(rd.Messages)
 
@@ -259,7 +260,12 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 							waitApply = true
 							break
 						}
+						if ent.Type == raftpb.EntryReConfChange {
+							waitApply = true
+							break
+						}
 					}
+					
 					if waitApply {
 						// blocks until 'applyAll' calls 'applyWait.Trigger'
 						// to be in sync with scheduled config-change job
@@ -272,6 +278,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 					}
 
 					// gofail: var raftBeforeFollowerSend struct{}
+					//fmt.Print("transport sendddd \n")
 					r.transport.Send(msgs)
 				} else {
 					// leader already processed 'MsgSnap' and signaled
@@ -305,8 +312,15 @@ func (r *raftNode) processMessages(ms []raftpb.Message) []raftpb.Message {
 		if r.isIDRemoved(ms[i].To) {
 			ms[i].To = 0
 		}
-
-		if ms[i].Type == raftpb.MsgAppResp {
+////////////////////////////////////////////////////////////////////////////
+		if ms[i].Type == raftpb.MsgAppResp || ms[i].Type == raftpb.MsgAppRecResp || ms[i].Type == raftpb.MsgAppNewConfResp{
+			if ms[i].Type == raftpb.MsgAppRecResp {
+				fmt.Print("msgapprecresp \n")
+			}
+			if ms[i].Type == raftpb.MsgAppNewConfResp {
+				fmt.Print("msgappnewconfresp \n")
+			}
+			
 			if sentAppResp {
 				ms[i].To = 0
 			} else {
@@ -381,41 +395,82 @@ func advanceTicksForElection(n raft.Node, electionTicks int) {
 func startNode(cfg ServerConfig, cl *membership.RaftCluster, ids []types.ID) (id types.ID, n raft.Node, s *raft.MemoryStorage, w *wal.WAL) {
 	var err error
 	member := cl.MemberByName(cfg.Name)
-	metadata := pbutil.MustMarshal(
-		&pb.Metadata{
-			NodeID:    uint64(member.ID),
-			ClusterID: uint64(cl.ID()),
-		},
-	)
-	if w, err = wal.Create(cfg.WALDir(), metadata); err != nil {
-		plog.Fatalf("create wal error: %v", err)
-	}
-	peers := make([]raft.Peer, len(ids))
-	for i, id := range ids {
-		ctx, err := json.Marshal((*cl).Member(id))
-		if err != nil {
-			plog.Panicf("marshal member should never fail: %v", err)
+	learner := cl.LearnerByName(cfg.Name)
+	if member != nil{
+		fmt.Print("raft node is member \n")
+		metadata := pbutil.MustMarshal(
+			&pb.Metadata{
+				NodeID:    uint64(member.ID),
+				ClusterID: uint64(cl.ID()),
+			},
+		)
+		if w, err = wal.Create(cfg.WALDir(), metadata); err != nil {
+			plog.Fatalf("create wal error: %v", err)
 		}
-		peers[i] = raft.Peer{ID: uint64(id), Context: ctx}
+		peers := make([]raft.Peer, len(ids))
+		for i, id := range ids {
+			ctx, err := json.Marshal((*cl).Member(id))
+			if err != nil {
+				plog.Panicf("marshal member should never fail: %v", err)
+			}
+			peers[i] = raft.Peer{ID: uint64(id), Context: ctx}
+		}
+		id = member.ID
+		plog.Infof("starting member %s in cluster %s", id, cl.ID())
+		s = raft.NewMemoryStorage()
+		c := &raft.Config{
+			ID:              uint64(id),
+			ElectionTick:    cfg.ElectionTicks,
+			HeartbeatTick:   1,
+			Storage:         s,
+			MaxSizePerMsg:   maxSizePerMsg,
+			MaxInflightMsgs: maxInflightMsgs,
+			CheckQuorum:     true,
+		}
+		n = raft.StartNode(c, peers, false)
+		raftStatusMu.Lock()
+		raftStatus = n.Status
+		raftStatusMu.Unlock()
+		advanceTicksForElection(n, c.ElectionTick)
+	} 
+	if learner != nil {
+		fmt.Print("raft node is learner \n")
+		metadata := pbutil.MustMarshal(
+			&pb.Metadata{
+				NodeID:    uint64(learner.ID),
+				ClusterID: uint64(cl.ID()),
+			},
+		)
+		if w, err = wal.Create(cfg.WALDir(), metadata); err != nil {
+			plog.Fatalf("create wal error: %v", err)
+		}
+		peers := make([]raft.Peer, len(ids))
+		for i, id := range ids {
+			ctx, err := json.Marshal((*cl).Learner(id))
+			if err != nil {
+				plog.Panicf("marshal learner should never fail: %v", err)
+			}
+			peers[i] = raft.Peer{ID: uint64(id), Context: ctx}
+		}
+		id = learner.ID
+		plog.Infof("starting learner %s in cluster %s", id, cl.ID())
+		s = raft.NewMemoryStorage()
+		c := &raft.Config{
+			ID:              uint64(id),
+			ElectionTick:    cfg.ElectionTicks,
+			HeartbeatTick:   1,
+			Storage:         s,	 
+			MaxSizePerMsg:   maxSizePerMsg,
+			MaxInflightMsgs: maxInflightMsgs,
+			CheckQuorum:     true,
+		}
+		n = raft.StartNode(c, peers, true)
+		raftStatusMu.Lock()
+		raftStatus = n.Status
+		raftStatusMu.Unlock()
+		//advanceTicksForElection(n, c.ElectionTick)
+		
 	}
-	id = member.ID
-	plog.Infof("starting member %s in cluster %s", id, cl.ID())
-	s = raft.NewMemoryStorage()
-	c := &raft.Config{
-		ID:              uint64(id),
-		ElectionTick:    cfg.ElectionTicks,
-		HeartbeatTick:   1,
-		Storage:         s,
-		MaxSizePerMsg:   maxSizePerMsg,
-		MaxInflightMsgs: maxInflightMsgs,
-		CheckQuorum:     true,
-	}
-
-	n = raft.StartNode(c, peers)
-	raftStatusMu.Lock()
-	raftStatus = n.Status
-	raftStatusMu.Unlock()
-	advanceTicksForElection(n, c.ElectionTick)
 	return id, n, s, w
 }
 

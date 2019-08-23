@@ -75,9 +75,9 @@ type ServerConfig struct {
 // VerifyBootstrap sanity-checks the initial config for bootstrap case
 // and returns an error for things that should never happen.
 func (c *ServerConfig) VerifyBootstrap() error {
-	if err := c.hasLocalMember(); err != nil {
-		return err
-	}
+	//if err := c.hasLocalMember(); err != nil {
+	//	return err
+	//}
 	if err := c.advertiseMatchesCluster(); err != nil {
 		return err
 	}
@@ -95,9 +95,9 @@ func (c *ServerConfig) VerifyBootstrap() error {
 func (c *ServerConfig) VerifyJoinExisting() error {
 	// The member has announced its peer urls to the cluster before starting; no need to
 	// set the configuration again.
-	if err := c.hasLocalMember(); err != nil {
-		return err
-	}
+	//if err := c.hasLocalMember(); err != nil {
+		//return err
+	//}
 	if checkDuplicateURL(c.InitialPeerURLsMap) {
 		return fmt.Errorf("initial cluster %s has duplicate url", c.InitialPeerURLsMap)
 	}

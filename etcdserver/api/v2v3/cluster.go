@@ -27,5 +27,7 @@ func (s *v2v3Server) ID() types.ID {
 }
 func (s *v2v3Server) ClientURLs() []string                  { panic("STUB") }
 func (s *v2v3Server) Members() []*membership.Member         { panic("STUB") }
+func (s *v2v3Server) Learners() []*membership.Learner       { panic("STUB") }
+func (s *v2v3Server) Learner(id types.ID) *membership.Learner{ panic("STUB") }
 func (s *v2v3Server) Member(id types.ID) *membership.Member { panic("STUB") }
 func (s *v2v3Server) Version() *semver.Version              { panic("STUB") }

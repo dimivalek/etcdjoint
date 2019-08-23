@@ -116,6 +116,33 @@ func (cp *clusterProxy) MemberAdd(ctx context.Context, r *pb.MemberAddRequest) (
 	return &resp, err
 }
 
+//////////////////////////////////////////////
+func (cp *clusterProxy) LearnerAdd(ctx context.Context, r *pb.LearnerAddRequest) (*pb.LearnerAddResponse, error) {
+	lresp, err := cp.clus.LearnerAdd(ctx, r.PeerURLs)
+	if err != nil {
+		return nil, err
+	}
+	resp := (pb.LearnerAddResponse)(*lresp)
+	return &resp, err
+}
+
+func (cp *clusterProxy) LearnerRemove(ctx context.Context, r *pb.LearnerRemoveRequest) (*pb.LearnerRemoveResponse, error) {
+	lresp, err := cp.clus.LearnerRemove(ctx, r.ID)
+	if err != nil {
+		return nil, err
+	}
+	resp := (pb.LearnerRemoveResponse)(*lresp)
+	return &resp, err
+}
+func (cp *clusterProxy) Reconfiguration(ctx context.Context, r *pb.ReconfigurationRequest) (*pb.ReconfigurationResponse, error) {
+	rresp, err := cp.clus.Reconfiguration(ctx, r.ConfIDs)
+	if err != nil {
+		return nil, err
+	}
+	resp := (pb.ReconfigurationResponse)(*rresp)
+	return &resp, err
+}
+
 func (cp *clusterProxy) MemberRemove(ctx context.Context, r *pb.MemberRemoveRequest) (*pb.MemberRemoveResponse, error) {
 	mresp, err := cp.clus.MemberRemove(ctx, r.ID)
 	if err != nil {

@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
+	"fmt"
 	"golang.org/x/net/http2"
 )
 
@@ -76,7 +76,7 @@ func readonlyHandlerFunc(next http.Handler) func(http.ResponseWriter, *http.Requ
 			w.WriteHeader(http.StatusNotImplemented)
 			return
 		}
-
+		fmt.Print("etcd/proxy/httpproxy proxy.go servehttp \n")
 		next.ServeHTTP(w, req)
 	}
 }

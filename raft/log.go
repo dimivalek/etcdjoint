@@ -284,6 +284,29 @@ func (l *raftLog) maybeCommit(maxIndex, term uint64) bool {
 	return false
 }
 
+func (l *raftLog) maybeCommitJoint(proposalindex, oldmaxIndex, newmaxIndex, term uint64) bool {
+	if proposalindex > oldmaxIndex {
+		if oldmaxIndex > l.committed && l.zeroTermOnErrCompacted(l.term(oldmaxIndex)) == term {
+			l.commitTo(oldmaxIndex)
+			return true
+		}
+		return false
+	
+	}
+	if proposalindex < oldmaxIndex && proposalindex > newmaxIndex{
+		return false
+	}
+	if oldmaxIndex > l.committed && newmaxIndex > l.committed && oldmaxIndex <= newmaxIndex && l.zeroTermOnErrCompacted(l.term(oldmaxIndex)) == term {
+		l.commitTo(oldmaxIndex)
+		return true
+	}
+	if oldmaxIndex > l.committed && newmaxIndex > l.committed && oldmaxIndex > newmaxIndex &&  l.zeroTermOnErrCompacted(l.term(newmaxIndex)) == term {
+		l.commitTo(newmaxIndex)
+		return true
+	}
+	return false
+}
+
 func (l *raftLog) restore(s pb.Snapshot) {
 	l.logger.Infof("log [%s] starts to restore snapshot [index: %d, term: %d]", l, s.Metadata.Index, s.Metadata.Term)
 	l.committed = s.Metadata.Index

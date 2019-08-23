@@ -183,7 +183,7 @@ func (t *Transport) Send(msgs []raftpb.Message) {
 		t.mu.RUnlock()
 
 		if pok {
-			if m.Type == raftpb.MsgApp {
+			if m.Type == raftpb.MsgApp || m.Type == raftpb.MsgAppRec || m.Type == raftpb.MsgAppNewConf{
 				t.ServerStats.SendAppendReq(m.Size())
 			}
 			p.send(m)
@@ -270,6 +270,7 @@ func (t *Transport) AddRemote(id types.ID, us []string) {
 	}
 	t.remotes[id] = startRemote(t, urls, id)
 }
+///////////////////////
 
 func (t *Transport) AddPeer(id types.ID, us []string) {
 	t.mu.Lock()

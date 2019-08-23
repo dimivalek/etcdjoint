@@ -1,8 +1,10 @@
 syntax = "proto2";
 package raftpb;
-
-import "gogoproto/gogo.proto";
-
+//import "github.com/golang/protobuf/proto"
+import "src/github.com/gogo/protobuf/gogoproto/gogo.proto";
+//import "src/github.com/gogo/protobuf/gogoproto/struct.proto";
+//import "/home/dimitris/go/src/github.com/gogo/protobuf/types/struct.proto";
+//import "google.protobuf";
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -12,6 +14,7 @@ option (gogoproto.goproto_enum_prefix_all) = false;
 enum EntryType {
 	EntryNormal     = 0;
 	EntryConfChange = 1;
+	EntryReConfChange = 2;
 }
 
 message Entry {
@@ -52,7 +55,13 @@ enum MessageType {
 	MsgReadIndexResp   = 16;
 	MsgPreVote         = 17;
 	MsgPreVoteResp     = 18;
+	MsgPropRec         = 19;
+	MsgAppRec	   = 20;
+	MsgAppRecResp      = 21;
+	MsgAppNewConf	   = 22;
+	MsgAppNewConfResp  = 23;
 }
+
 
 message Message {
 	optional MessageType type        = 1  [(gogoproto.nullable) = false];
@@ -67,6 +76,10 @@ message Message {
 	optional bool        reject      = 10 [(gogoproto.nullable) = false];
 	optional uint64      rejectHint  = 11 [(gogoproto.nullable) = false];
 	optional bytes       context     = 12;
+	optional bool	     fromLearner = 13 [(gogoproto.nullable) = false];
+	repeated uint64      ConfIDs     = 14 [(gogoproto.nullable) = false];
+	repeated uint64      memberids     = 15 [(gogoproto.nullable) = false];
+	repeated uint64      learnerids    = 16 [(gogoproto.nullable) = false];
 }
 
 message HardState {
@@ -85,11 +98,20 @@ enum ConfChangeType {
 	ConfChangeRemoveNode     = 1;
 	ConfChangeUpdateNode     = 2;
 	ConfChangeAddLearnerNode = 3;
+	Reconfiguration		 = 4;
 }
 
 message ConfChange {
 	optional uint64          ID      = 1 [(gogoproto.nullable) = false];
 	optional ConfChangeType  Type    = 2 [(gogoproto.nullable) = false];
 	optional uint64          NodeID  = 3 [(gogoproto.nullable) = false];
+	repeated uint64          ConfIDs = 4 [(gogoproto.nullable) = false];
+	optional bytes           Context = 5;
+}
+
+message ReConfChange {
+	optional uint64          ID      = 1 [(gogoproto.nullable) = false];
+	optional ConfChangeType  Type    = 2 [(gogoproto.nullable) = false];
+	repeated uint64          ConfIDs = 3 [(gogoproto.nullable) = false];
 	optional bytes           Context = 4;
 }

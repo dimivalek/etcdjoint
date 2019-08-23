@@ -260,7 +260,14 @@ func (rcc *retryClusterClient) MemberList(ctx context.Context, in *pb.MemberList
 	}, repeatable)
 	return resp, err
 }
-
+///////////////////////////////////
+/*func (rcc *retryClusterClient) LearnerList(ctx context.Context, in *pb.LearnerListRequest, opts ...grpc.CallOption) (resp *pb.LearnerListResponse, err error) {
+	err = rcc.repeatableRetry(ctx, func(rctx context.Context) error {
+		resp, err = rcc.cc.LearnerList(rctx, in, opts...)
+		return err
+	})
+	return resp, err
+}*/
 func (rcc *retryClusterClient) MemberAdd(ctx context.Context, in *pb.MemberAddRequest, opts ...grpc.CallOption) (resp *pb.MemberAddResponse, err error) {
 	err = rcc.retryf(ctx, func(rctx context.Context) error {
 		resp, err = rcc.cc.MemberAdd(rctx, in, opts...)
@@ -268,7 +275,22 @@ func (rcc *retryClusterClient) MemberAdd(ctx context.Context, in *pb.MemberAddRe
 	}, nonRepeatable)
 	return resp, err
 }
+//////////////////////
+func (rcc *retryClusterClient) LearnerAdd(ctx context.Context, in *pb.LearnerAddRequest, opts ...grpc.CallOption) (resp *pb.LearnerAddResponse, err error) {
+	err = rcc.retryf(ctx, func(rctx context.Context) error {
+		resp, err = rcc.cc.LearnerAdd(rctx, in, opts...)
+		return err
+	}, nonRepeatable)
+	return resp, err
+}
 
+func (rcc *retryClusterClient) Reconfiguration(ctx context.Context, in *pb.ReconfigurationRequest, opts ...grpc.CallOption) (resp *pb.ReconfigurationResponse, err error) {
+	err = rcc.retryf(ctx, func(rctx context.Context) error {
+		resp, err = rcc.cc.Reconfiguration(rctx, in, opts...)
+		return err
+	}, nonRepeatable)
+	return resp, err
+}
 func (rcc *retryClusterClient) MemberRemove(ctx context.Context, in *pb.MemberRemoveRequest, opts ...grpc.CallOption) (resp *pb.MemberRemoveResponse, err error) {
 	err = rcc.retryf(ctx, func(rctx context.Context) error {
 		resp, err = rcc.cc.MemberRemove(rctx, in, opts...)
@@ -277,6 +299,13 @@ func (rcc *retryClusterClient) MemberRemove(ctx context.Context, in *pb.MemberRe
 	return resp, err
 }
 
+func (rcc *retryClusterClient) LearnerRemove(ctx context.Context, in *pb.LearnerRemoveRequest, opts ...grpc.CallOption) (resp *pb.LearnerRemoveResponse, err error) {
+	err = rcc.retryf(ctx, func(rctx context.Context) error {
+		resp, err = rcc.cc.LearnerRemove(rctx, in, opts...)
+		return err
+	}, nonRepeatable)
+	return resp, err
+}
 func (rcc *retryClusterClient) MemberUpdate(ctx context.Context, in *pb.MemberUpdateRequest, opts ...grpc.CallOption) (resp *pb.MemberUpdateResponse, err error) {
 	err = rcc.retryf(ctx, func(rctx context.Context) error {
 		resp, err = rcc.cc.MemberUpdate(rctx, in, opts...)

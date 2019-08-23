@@ -17,15 +17,17 @@ package etcdhttp
 import (
 	"encoding/json"
 	"net/http"
-
+	"fmt"
 	"github.com/coreos/etcd/etcdserver"
 	"github.com/coreos/etcd/etcdserver/api"
 	"github.com/coreos/etcd/lease/leasehttp"
 	"github.com/coreos/etcd/rafthttp"
+	"github.com/coreos/etcd/etcdserver/membership"
 )
 
 const (
 	peerMembersPrefix = "/members"
+	peerLearnersPrefix = "/learners"
 )
 
 // NewPeerHandler generates an http.Handler to handle etcd peer requests.
@@ -43,6 +45,7 @@ func newPeerHandler(cluster api.Cluster, raftHandler http.Handler, leaseHandler 
 	mux.Handle(rafthttp.RaftPrefix, raftHandler)
 	mux.Handle(rafthttp.RaftPrefix+"/", raftHandler)
 	mux.Handle(peerMembersPrefix, mh)
+	//mux.Handle(peerLearnersPrefix, mh)
 	if leaseHandler != nil {
 		mux.Handle(leasehttp.LeasePrefix, leaseHandler)
 		mux.Handle(leasehttp.LeaseInternalPrefix, leaseHandler)
@@ -54,6 +57,10 @@ func newPeerHandler(cluster api.Cluster, raftHandler http.Handler, leaseHandler 
 type peerMembersHandler struct {
 	cluster api.Cluster
 }
+type MembersOrlearners struct {
+	Membs []*membership.Member `json:"members"`
+	Learns []*membership.Learner `json:"learners"`
+} 
 
 func (h *peerMembersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !allowMethod(w, r, "GET") {
@@ -61,13 +68,22 @@ func (h *peerMembersHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("X-Etcd-Cluster-ID", h.cluster.ID().String())
 
-	if r.URL.Path != peerMembersPrefix {
+	if r.URL.Path != peerMembersPrefix /*|| r.URL.Path != peerLearnersPrefix*/{
 		http.Error(w, "bad path", http.StatusBadRequest)
 		return
 	}
 	ms := h.cluster.Members()
+	ls := h.cluster.Learners()
+
+	var lm MembersOrlearners
+	lm.Membs = ms
+	lm.Learns = ls
+	fmt.Print("cluster members at peer.go are",lm.Membs,"\n")
+	fmt.Print("cluster learners at peer.go are",lm.Learns,"\n")
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(ms); err != nil {
+	hh := json.NewEncoder(w)
+	fmt.Print("lm is ",lm,"\n")
+	if err := hh.Encode(lm); err != nil {
 		plog.Warningf("failed to encode members response (%v)", err)
 	}
 }

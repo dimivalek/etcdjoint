@@ -20,6 +20,7 @@ import (
 	pb "github.com/coreos/etcd/etcdserver/etcdserverpb"
 
 	"google.golang.org/grpc"
+	"fmt"
 )
 
 type (
@@ -28,6 +29,10 @@ type (
 	MemberAddResponse    pb.MemberAddResponse
 	MemberRemoveResponse pb.MemberRemoveResponse
 	MemberUpdateResponse pb.MemberUpdateResponse
+	Learner		     pb.Learner
+	LearnerAddResponse   pb.LearnerAddResponse
+	LearnerRemoveResponse pb.LearnerRemoveResponse
+	ReconfigurationResponse pb.ReconfigurationResponse
 )
 
 type Cluster interface {
@@ -37,11 +42,17 @@ type Cluster interface {
 	// MemberAdd adds a new member into the cluster.
 	MemberAdd(ctx context.Context, peerAddrs []string) (*MemberAddResponse, error)
 
+	// LearnerAdd adds a new learner into the wide cluster.
+	LearnerAdd(ctx context.Context, peerAddrs []string) (*LearnerAddResponse, error)
+	
+	LearnerRemove(ctx context.Context, id uint64) (*LearnerRemoveResponse, error)
 	// MemberRemove removes an existing member from the cluster.
 	MemberRemove(ctx context.Context, id uint64) (*MemberRemoveResponse, error)
 
 	// MemberUpdate updates the peer addresses of the member.
 	MemberUpdate(ctx context.Context, id uint64, peerAddrs []string) (*MemberUpdateResponse, error)
+
+	Reconfiguration(ctx context.Context, confids []uint64) (*ReconfigurationResponse, error)
 }
 
 type cluster struct {
@@ -74,6 +85,25 @@ func (c *cluster) MemberAdd(ctx context.Context, peerAddrs []string) (*MemberAdd
 	return (*MemberAddResponse)(resp), nil
 }
 
+func (c *cluster) LearnerAdd(ctx context.Context, peerAddrs []string) (*LearnerAddResponse, error) {
+	r := &pb.LearnerAddRequest{PeerURLs: peerAddrs}
+	fmt.Print("learner add clientv3/cluster \n")
+	resp, err := c.remote.LearnerAdd(ctx, r, c.callOpts...)
+	if err != nil {
+		return nil, toErr(ctx, err)
+	}
+	return (*LearnerAddResponse)(resp), nil
+}
+///////////////////, c.callOpts...////////////////
+func (c *cluster) Reconfiguration(ctx context.Context, confids []uint64) (*ReconfigurationResponse, error) {
+	r := &pb.ReconfigurationRequest{ConfIDs: confids}
+	fmt.Print("recofiguration clientv3/cluster \n")
+	resp, err := c.remote.Reconfiguration(ctx, r)
+	if err != nil {
+		return nil, toErr(ctx, err)
+	}
+	return (*ReconfigurationResponse)(resp), nil
+}
 func (c *cluster) MemberRemove(ctx context.Context, id uint64) (*MemberRemoveResponse, error) {
 	r := &pb.MemberRemoveRequest{ID: id}
 	resp, err := c.remote.MemberRemove(ctx, r, c.callOpts...)
@@ -83,6 +113,14 @@ func (c *cluster) MemberRemove(ctx context.Context, id uint64) (*MemberRemoveRes
 	return (*MemberRemoveResponse)(resp), nil
 }
 
+func (c *cluster) LearnerRemove(ctx context.Context, id uint64) (*LearnerRemoveResponse, error) {
+	r := &pb.LearnerRemoveRequest{ID: id}
+	resp, err := c.remote.LearnerRemove(ctx, r, c.callOpts...)
+	if err != nil {
+		return nil, toErr(ctx, err)
+	}
+	return (*LearnerRemoveResponse)(resp), nil
+}
 func (c *cluster) MemberUpdate(ctx context.Context, id uint64, peerAddrs []string) (*MemberUpdateResponse, error) {
 	// it is safe to retry on update.
 	r := &pb.MemberUpdateRequest{ID: id, PeerURLs: peerAddrs}

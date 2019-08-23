@@ -49,22 +49,47 @@ type RaftCluster struct {
 	sync.Mutex // guards the fields below
 	version    *semver.Version
 	members    map[types.ID]*Member
+	learners   map[types.ID]*Learner
 	// removed contains the ids of removed members in the cluster.
 	// removed id cannot be reused.
 	removed map[types.ID]bool
 }
 
 func NewClusterFromURLsMap(token string, urlsmap types.URLsMap) (*RaftCluster, error) {
+/*possibly will need to add else if statement and detect whether is member or learner */
 	c := NewCluster(token)
 	for name, urls := range urlsmap {
-		m := NewMember(name, urls, token, nil)
-		if _, ok := c.members[m.ID]; ok {
+		fmt.Print("name and urls",name,urls,"\n")
+		if name=="server10" || name=="server11" || name=="server12" || name=="server13"|| name=="server14" || name=="server15"{ 
+			m :=NewLearner(name, urls, token, nil)
+			//fmt.Print("gid",GID,"\n")
+			if _, ok := c.learners[m.ID]; ok {
+				return nil, fmt.Errorf("learner exists with identical ID %v", m)
+			}
+			if uint64(m.ID) == raft.None {
+				return nil, fmt.Errorf("cannot use %x as learner id", raft.None)
+			}
+			
+			c.learners[m.ID] = m
+			fmt.Print("learner id is ",c.learners[m.ID],"\n")
+		} else {
+			m := NewMember(name, urls, token, nil)
+			if _, ok := c.members[m.ID]; ok {
+				return nil, fmt.Errorf("member exists with identical ID %v", m)
+			}
+			if uint64(m.ID) == raft.None {
+				return nil, fmt.Errorf("cannot use %x as member id", raft.None)
+			}
+			c.members[m.ID] = m
+			
+		}
+		/*if _, ok := c.members[m.ID]; ok {
 			return nil, fmt.Errorf("member exists with identical ID %v", m)
 		}
 		if uint64(m.ID) == raft.None {
 			return nil, fmt.Errorf("cannot use %x as member id", raft.None)
 		}
-		c.members[m.ID] = m
+		c.members[m.ID] = m*/
 	}
 	c.genID()
 	return c, nil
@@ -78,11 +103,25 @@ func NewClusterFromMembers(token string, id types.ID, membs []*Member) *RaftClus
 	}
 	return c
 }
-
+func NewClusterFromMembers2(token string, id types.ID, membs []*Member, learns []*Learner) *RaftCluster {
+	c := NewCluster(token)
+	c.id = id
+	for _, m := range membs {
+		c.members[m.ID] = m
+	}
+	fmt.Print("NewClusterFromMembers learner length is",len(learns),"\n")
+	for _, m := range learns {
+		c.learners[m.ID] = m
+		fmt.Print("NewClusterFromMembers learner ID is",c.learners[m.ID],"\n")
+	}
+	
+	return c
+}
 func NewCluster(token string) *RaftCluster {
 	return &RaftCluster{
 		token:   token,
 		members: make(map[types.ID]*Member),
+		learners: make(map[types.ID]*Learner),
 		removed: make(map[types.ID]bool),
 	}
 }
@@ -105,7 +144,39 @@ func (c *RaftCluster) Member(id types.ID) *Member {
 	defer c.Unlock()
 	return c.members[id].Clone()
 }
+////////////////////////////
+func (c *RaftCluster) Learner(id types.ID) *Learner {
+	c.Lock()
+	defer c.Unlock()
+	fmt.Print("learners id is ",c.learners[id],"\n")
+	return c.learners[id].Clone()
+}
 
+func (c *RaftCluster) Learners() []*Learner {
+	c.Lock()
+	defer c.Unlock()
+	var ls LearnersByID
+	fmt.Print("learners length is ",len(c.learners),"\n")
+	for _, l := range c.learners {
+		ls = append(ls, l.Clone())
+	}
+	sort.Sort(ls)
+	return []*Learner(ls)
+}
+
+func (c *RaftCluster) Confids() []uint64 {
+	c.Lock()
+	defer c.Unlock()
+	var ids []uint64
+	for _, m := range c.members {
+		ids = append(ids, uint64(m.ID))
+	}
+	for _, m := range c.learners {
+		ids = append(ids, uint64(m.ID))
+	}
+	//sort.Sort(types.IDSlice(ids))
+	return ids
+}
 // MemberByName returns a Member with the given name if exists.
 // If more than one member has the given name, it will panic.
 func (c *RaftCluster) MemberByName(name string) *Member {
@@ -122,12 +193,38 @@ func (c *RaftCluster) MemberByName(name string) *Member {
 	}
 	return memb.Clone()
 }
+////////////////
+func (c *RaftCluster) LearnerByName(name string) *Learner {
+	c.Lock()
+	defer c.Unlock()
+	var learn *Learner
+	for _, l := range c.learners {
+		if l.Name == name {
+			if learn != nil {
+				plog.Panicf("two learners with the given name %q exist", name)
+			}
+			learn = l
+		}
+	}
+	return learn.Clone()
+}
 
 func (c *RaftCluster) MemberIDs() []types.ID {
 	c.Lock()
 	defer c.Unlock()
 	var ids []types.ID
 	for _, m := range c.members {
+		ids = append(ids, m.ID)
+	}
+	sort.Sort(types.IDSlice(ids))
+	return ids
+}
+////////////////
+func (c *RaftCluster) LearnerIDs() []types.ID {
+	c.Lock()
+	defer c.Unlock()
+	var ids []types.ID
+	for _, m := range c.learners {
 		ids = append(ids, m.ID)
 	}
 	sort.Sort(types.IDSlice(ids))
@@ -186,15 +283,23 @@ func (c *RaftCluster) String() string {
 
 func (c *RaftCluster) genID() {
 	mIDs := c.MemberIDs()
-	b := make([]byte, 8*len(mIDs))
+	lIDs := c.LearnerIDs()
+	b := make([]byte, 8*(len(mIDs)+len(lIDs)))
 	for i, id := range mIDs {
+		binary.BigEndian.PutUint64(b[8*i:], uint64(id))
+	}
+	for i, id := range lIDs {
 		binary.BigEndian.PutUint64(b[8*i:], uint64(id))
 	}
 	hash := sha1.Sum(b)
 	c.id = types.ID(binary.BigEndian.Uint64(hash[:8]))
 }
 
-func (c *RaftCluster) SetID(id types.ID) { c.id = id }
+func (c *RaftCluster) SetID(id types.ID) { 
+	c.id = id
+	fmt.Print("cluster id is ",c.id,"\n")
+
+ }
 
 func (c *RaftCluster) SetStore(st store.Store) { c.store = st }
 
@@ -224,11 +329,36 @@ func (c *RaftCluster) Recover(onSet func(*semver.Version)) {
 // ensures that it is still valid.
 func (c *RaftCluster) ValidateConfigurationChange(cc raftpb.ConfChange) error {
 	members, removed := membersFromStore(c.store)
+	learners, removed := learnersFromStore(c.store)
 	id := types.ID(cc.NodeID)
 	if removed[id] {
 		return ErrIDRemoved
 	}
 	switch cc.Type {
+	case raftpb.ConfChangeAddLearnerNode:
+	fmt.Print(" ConfChangeAddLearnerNode etcdserver/membership/cluster \n")
+		///////////////
+		if members[id] != nil {
+			//return ErrIDNotFound
+			return ErrIDExists
+		}
+		urls := make(map[string]bool)
+		for _, m := range members {
+			for _, u := range m.PeerURLs {
+				urls[u] = true
+			}
+		}
+
+		m := new(Learner)
+		fmt.Print("print learner",m,"\n")
+		if err := json.Unmarshal(cc.Context, m); err != nil {
+			plog.Panicf("unmarshal member should never fail: %v", err)
+		}
+		for _, u := range m.PeerURLs {
+			if urls[u] {
+				return ErrPeerURLexists
+			}
+		}
 	case raftpb.ConfChangeAddNode:
 		if members[id] != nil {
 			return ErrIDExists
@@ -240,6 +370,7 @@ func (c *RaftCluster) ValidateConfigurationChange(cc raftpb.ConfChange) error {
 			}
 		}
 		m := new(Member)
+
 		if err := json.Unmarshal(cc.Context, m); err != nil {
 			plog.Panicf("unmarshal member should never fail: %v", err)
 		}
@@ -250,6 +381,10 @@ func (c *RaftCluster) ValidateConfigurationChange(cc raftpb.ConfChange) error {
 		}
 	case raftpb.ConfChangeRemoveNode:
 		if members[id] == nil {
+			return ErrIDNotFound
+		}
+	case raftpb.ConfChangeRemoveLearner:
+		if learners[id] == nil {
 			return ErrIDNotFound
 		}
 	case raftpb.ConfChangeUpdateNode:
@@ -275,7 +410,7 @@ func (c *RaftCluster) ValidateConfigurationChange(cc raftpb.ConfChange) error {
 			}
 		}
 	default:
-		plog.Panicf("ConfChange type should be either AddNode, RemoveNode or UpdateNode")
+		plog.Panicf("ConfChange type should be either AddNode, RemoveNode or UpdateNode or AddLearnerNode")
 	}
 	return nil
 }
@@ -298,6 +433,23 @@ func (c *RaftCluster) AddMember(m *Member) {
 	plog.Infof("added member %s %v to cluster %s", m.ID, m.PeerURLs, c.id)
 }
 
+// AddLearner adds a new Learner into the cluster, and saves the given learner's
+// raftAttributes into the store. The given learner should have empty attributes.
+// A Learner with a matching id must not exist.
+func (c *RaftCluster) AddLearner(m *Learner) {
+	c.Lock()
+	defer c.Unlock()
+	fmt.Print(" add learner etcdserver/membership/cluster",m, "\n")
+	if c.store != nil {
+		mustSaveLearnerToStore(c.store, m)
+	}
+	if c.be != nil {
+		mustSaveLearnerToBackend(c.be, m)
+	}
+	c.learners[m.ID] = m
+	plog.Infof("added learner %s %v to cluster %s", m.ID, m.PeerURLs, c.id)
+}
+
 // RemoveMember removes a member from the store.
 // The given id MUST exist, or the function panics.
 func (c *RaftCluster) RemoveMember(id types.ID) {
@@ -316,6 +468,21 @@ func (c *RaftCluster) RemoveMember(id types.ID) {
 	plog.Infof("removed member %s from cluster %s", id, c.id)
 }
 
+
+func (c *RaftCluster) RemoveLearner(id types.ID) {
+	c.Lock()
+	defer c.Unlock()
+	if c.store != nil {
+		mustDeleteLearnerFromStore(c.store, id)
+	}
+	if c.be != nil {
+		mustDeleteLearnerFromBackend(c.be, id)
+	}
+
+	delete(c.learners, id)
+
+	plog.Infof("removed learner %s from cluster %s", id, c.id)
+}
 func (c *RaftCluster) UpdateAttributes(id types.ID, attr Attributes) {
 	c.Lock()
 	defer c.Unlock()
@@ -326,6 +493,15 @@ func (c *RaftCluster) UpdateAttributes(id types.ID, attr Attributes) {
 		}
 		if c.be != nil {
 			mustSaveMemberToBackend(c.be, m)
+		}
+		return
+	}else if m, ok := c.learners[id]; ok {
+		m.Attributes = attr
+		if c.store != nil {
+			mustUpdateLearnerAttrInStore(c.store, m)
+		}
+		if c.be != nil {
+			mustSaveLearnerToBackend(c.be, m)
 		}
 		return
 	}
@@ -339,7 +515,7 @@ func (c *RaftCluster) UpdateAttributes(id types.ID, attr Attributes) {
 func (c *RaftCluster) UpdateRaftAttributes(id types.ID, raftAttr RaftAttributes) {
 	c.Lock()
 	defer c.Unlock()
-
+	fmt.Print("updateRaftattributes \n")
 	c.members[id].RaftAttributes = raftAttr
 	if c.store != nil {
 		mustUpdateMemberInStore(c.store, c.members[id])
@@ -381,7 +557,7 @@ func (c *RaftCluster) SetVersion(ver *semver.Version, onSet func(*semver.Version
 
 func (c *RaftCluster) IsReadyToAddNewMember() bool {
 	nmembers := 1
-	nstarted := 0
+	nstarted := 3
 
 	for _, member := range c.members {
 		if member.IsStarted() {
@@ -417,6 +593,16 @@ func (c *RaftCluster) IsReadyToRemoveMember(id uint64) bool {
 		}
 
 		if member.IsStarted() {
+			nstarted++
+		}
+		nmembers++
+	}
+	for _, learner := range c.learners {
+		if uint64(learner.ID) == id {
+			continue
+		}
+
+		if learner.IsStarted() {
 			nstarted++
 		}
 		nmembers++
@@ -463,6 +649,38 @@ func membersFromStore(st store.Store) (map[types.ID]*Member, map[types.ID]bool) 
 	return members, removed
 }
 
+func learnersFromStore(st store.Store) (map[types.ID]*Learner, map[types.ID]bool) {
+	learners := make(map[types.ID]*Learner)
+	removed := make(map[types.ID]bool)
+	e, err := st.Get(StoreLearnersPrefix, true, true)
+	if err != nil {
+		if isKeyNotFound(err) {
+			return learners, removed
+		}
+		plog.Panicf("get storeLearners should never fail: %v", err)
+	}
+	for _, n := range e.Node.Nodes {
+		var m *Learner
+		m, err = nodeToLearner(n)
+		if err != nil {
+			plog.Panicf("nodeToLearner should never fail: %v", err)
+		}
+		learners[m.ID] = m
+	}
+
+	e, err = st.Get(storeRemovedLearnersPrefix, true, true)
+	if err != nil {
+		if isKeyNotFound(err) {
+			return learners, removed
+		}
+		plog.Panicf("get storeRemovedLearners should never fail: %v", err)
+	}
+	for _, n := range e.Node.Nodes {
+		removed[MustParseMemberIDFromKey(n.Key)] = true
+	}
+	return learners, removed
+}
+
 func clusterVersionFromStore(st store.Store) *semver.Version {
 	e, err := st.Get(path.Join(storePrefix, "version"), false, false)
 	if err != nil {
@@ -481,16 +699,27 @@ func clusterVersionFromStore(st store.Store) *semver.Version {
 func ValidateClusterAndAssignIDs(local *RaftCluster, existing *RaftCluster) error {
 	ems := existing.Members()
 	lms := local.Members()
-	if len(ems) != len(lms) {
+	fmt.Print("local members are",len(lms),"\n")
+	fmt.Print("existing members are",len(ems),"\n")
+	els := existing.Learners()
+	lls := local.Learners()
+	fmt.Print("local learners are",len(lls),"\n")
+	fmt.Print("existing learners are",len(els),"\n")
+	if len(ems) /*+ len(els) */!= len(lms) /*+ len(lls)*/ {
 		return fmt.Errorf("member count is unequal")
+	}
+	if len(els) != len(lls) {
+		return fmt.Errorf("learner count is unequal")
 	}
 	sort.Sort(MembersByPeerURLs(ems))
 	sort.Sort(MembersByPeerURLs(lms))
-
+	sort.Sort(LearnersByPeerURLs(els))
+	sort.Sort(LearnersByPeerURLs(lls))
 	ctx, cancel := context.WithTimeout(context.TODO(), 30*time.Second)
 	defer cancel()
 	for i := range ems {
 		if !netutil.URLStringsEqual(ctx, ems[i].PeerURLs, lms[i].PeerURLs) {
+			fmt.Print("print urls",ems[i].PeerURLs, lms[i].PeerURLs,"\n")
 			return fmt.Errorf("unmatched member while checking PeerURLs")
 		}
 		lms[i].ID = ems[i].ID
@@ -498,6 +727,18 @@ func ValidateClusterAndAssignIDs(local *RaftCluster, existing *RaftCluster) erro
 	local.members = make(map[types.ID]*Member)
 	for _, m := range lms {
 		local.members[m.ID] = m
+		fmt.Print("local member ids are",local.members[m.ID],"\n")
+	}
+	for i := range els {
+		if !netutil.URLStringsEqual(ctx, els[i].PeerURLs, lls[i].PeerURLs) {
+			return fmt.Errorf("unmatched learner while checking PeerURLs")
+		}
+		lls[i].ID = els[i].ID
+	}
+	local.learners = make(map[types.ID]*Learner)
+	for _, l := range lls {
+		local.learners[l.ID] = l
+		fmt.Print("local learners ids are",local.learners[l.ID],"\n")
 	}
 	return nil
 }

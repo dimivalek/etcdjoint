@@ -34,5 +34,8 @@ type Cluster interface {
 	// member does not exist in the cluster
 	Member(id types.ID) *membership.Member
 	// Version is the cluster-wide minimum major.minor version.
+	Learners() []*membership.Learner
+
+	Learner(id types.ID) *membership.Learner
 	Version() *semver.Version
 }

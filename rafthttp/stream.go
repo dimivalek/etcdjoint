@@ -393,7 +393,7 @@ func (cr *streamReader) decodeLoop(rc io.ReadCloser, t streamType) error {
 		}
 
 		recvc := cr.recvc
-		if m.Type == raftpb.MsgProp {
+		if m.Type == raftpb.MsgProp || m.Type == raftpb.MsgPropRec{
 			recvc = cr.propc
 		}
 

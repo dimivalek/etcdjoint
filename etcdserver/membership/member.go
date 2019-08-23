@@ -21,14 +21,19 @@ import (
 	"math/rand"
 	"sort"
 	"time"
-
 	"github.com/coreos/etcd/pkg/types"
 	"github.com/coreos/pkg/capnslog"
 )
 
 var (
 	plog = capnslog.NewPackageLogger("github.com/coreos/etcd", "etcdserver/membership")
+
+
 )
+
+//type HelperID struct {
+//	ID types.ID `json:"id"`
+//}
 
 // RaftAttributes represents the raft related attributes of an etcd member.
 type RaftAttributes struct {
@@ -47,10 +52,18 @@ type Member struct {
 	ID types.ID `json:"id"`
 	RaftAttributes
 	Attributes
-}
+} 
 
+type Learner struct {
+	ID types.ID `json:"id"`
+	RaftAttributes
+	Attributes
+} 
+
+//////////////////////////
 // NewMember creates a Member without an ID and generates one based on the
 // cluster name, peer URLs, and time. This is used for bootstrapping/adding new member.
+
 func NewMember(name string, peerURLs types.URLs, clusterName string, now *time.Time) *Member {
 	m := &Member{
 		RaftAttributes: RaftAttributes{PeerURLs: peerURLs.StringSlice()},
@@ -66,13 +79,45 @@ func NewMember(name string, peerURLs types.URLs, clusterName string, now *time.T
 	b = append(b, []byte(clusterName)...)
 	if now != nil {
 		b = append(b, []byte(fmt.Sprintf("%d", now.Unix()))...)
-	}
+	} 
 
 	hash := sha1.Sum(b)
 	m.ID = types.ID(binary.BigEndian.Uint64(hash[:8]))
+	fmt.Print("new member id is ",m.ID,"\n")
 	return m
-}
 
+}
+/////////////////////////////////////////////////////////////
+// NewLearner creates a Learner without an ID and generates one based on the
+// cluster name, peer URLs, and time. This is used for bootstrapping/adding new learner.
+func NewLearner(name string, peerURLs types.URLs, clusterName string, now *time.Time) *Learner {
+	
+	
+	l := &Learner{
+		RaftAttributes: RaftAttributes{PeerURLs: peerURLs.StringSlice()},
+		Attributes:     Attributes{Name: name},
+	}
+	var b []byte
+	sort.Strings(l.PeerURLs)
+	for _, p := range l.PeerURLs {
+		b = append(b, []byte(p)...)
+	}
+
+	b = append(b, []byte(clusterName)...)
+	if now != nil {
+		b = append(b, []byte(fmt.Sprintf("%d", now.Unix()))...)
+		hash := sha1.Sum(b)
+		l.ID = types.ID(binary.BigEndian.Uint64(hash[:8]))
+		return l
+	}  else {
+		
+		hash := sha1.Sum(b)
+		l.ID = types.ID(binary.BigEndian.Uint64(hash[:8]))
+		fmt.Print("new learner id is ",l.ID,"\n")
+		return l	
+	}
+	
+}
 // PickPeerURL chooses a random address from a given Member's PeerURLs.
 // It will panic if there is no PeerURLs available in Member.
 func (m *Member) PickPeerURL() string {
@@ -102,23 +147,54 @@ func (m *Member) Clone() *Member {
 	}
 	return mm
 }
-
+///////////////////////
+func (l *Learner) Clone() *Learner {
+	if l == nil {
+		return nil
+	}
+	ll := &Learner{
+		ID: l.ID,
+		Attributes: Attributes{
+			Name: l.Name,
+		},
+	}
+	if l.PeerURLs != nil {
+		ll.PeerURLs = make([]string, len(l.PeerURLs))
+		copy(ll.PeerURLs, l.PeerURLs)
+	}
+	if l.ClientURLs != nil {
+		ll.ClientURLs = make([]string, len(l.ClientURLs))
+		copy(ll.ClientURLs, l.ClientURLs)
+	}
+	return ll
+}
 func (m *Member) IsStarted() bool {
 	return len(m.Name) != 0
 }
 
+func (l *Learner) IsStarted() bool {
+	return len(l.Name) != 0
+}
 // MembersByID implements sort by ID interface
 type MembersByID []*Member
-
+type LearnersByID []*Learner
 func (ms MembersByID) Len() int           { return len(ms) }
 func (ms MembersByID) Less(i, j int) bool { return ms[i].ID < ms[j].ID }
 func (ms MembersByID) Swap(i, j int)      { ms[i], ms[j] = ms[j], ms[i] }
-
+func (ls LearnersByID) Len() int           { return len(ls) }
+func (ls LearnersByID) Less(i, j int) bool { return ls[i].ID < ls[j].ID }
+func (ls LearnersByID) Swap(i, j int)      { ls[i], ls[j] = ls[j], ls[i] }
 // MembersByPeerURLs implements sort by peer urls interface
 type MembersByPeerURLs []*Member
-
+type LearnersByPeerURLs []*Learner
 func (ms MembersByPeerURLs) Len() int { return len(ms) }
 func (ms MembersByPeerURLs) Less(i, j int) bool {
 	return ms[i].PeerURLs[0] < ms[j].PeerURLs[0]
 }
 func (ms MembersByPeerURLs) Swap(i, j int) { ms[i], ms[j] = ms[j], ms[i] }
+///////
+func (ls LearnersByPeerURLs) Len() int { return len(ls) }
+func (ls LearnersByPeerURLs) Less(i, j int) bool {
+	return ls[i].PeerURLs[0] < ls[j].PeerURLs[0]
+}
+func (ls LearnersByPeerURLs) Swap(i, j int) { ls[i], ls[j] = ls[j], ls[i] }

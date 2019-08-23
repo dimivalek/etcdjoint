@@ -36,6 +36,7 @@ func (p *fieldsPrinter) kv(pfx string, kv *spb.KeyValue) {
 func (p *fieldsPrinter) hdr(h *pb.ResponseHeader) {
 	fmt.Println(`"ClusterID" :`, h.ClusterId)
 	fmt.Println(`"MemberID" :`, h.MemberId)
+	fmt.Println(`"LearneerID" :`, h.LearnerId)
 	fmt.Println(`"Revision" :`, h.Revision)
 	fmt.Println(`"RaftTerm" :`, h.RaftTerm)
 }

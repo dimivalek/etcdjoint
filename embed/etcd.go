@@ -180,7 +180,7 @@ func StartEtcd(inCfg *Config) (e *Etcd, err error) {
 		InitialCorruptCheck:     cfg.ExperimentalInitialCorruptCheck,
 		CorruptCheckTime:        cfg.ExperimentalCorruptCheckTime,
 	}
-
+	fmt.Print("embed/etcd peerurls",srvcfg.PeerURLs,"\n")
 	if e.Server, err = etcdserver.NewServer(srvcfg); err != nil {
 		return e, err
 	}
@@ -355,6 +355,7 @@ func startPeerListeners(cfg *Config) (peers []*peerListener, err error) {
 // configure peer handlers after rafthttp.Transport started
 func (e *Etcd) servePeers() (err error) {
 	ph := etcdhttp.NewPeerHandler(e.Server)
+	
 	var peerTLScfg *tls.Config
 	if !e.cfg.PeerTLSInfo.Empty() {
 		if peerTLScfg, err = e.cfg.PeerTLSInfo.ServerConfig(); err != nil {
@@ -366,8 +367,10 @@ func (e *Etcd) servePeers() (err error) {
 		gs := v3rpc.Server(e.Server, peerTLScfg)
 		m := cmux.New(p.Listener)
 		go gs.Serve(m.Match(cmux.HTTP2()))
+		fmt.Print("embed/etcd.go grpcHandlerFunc \n")
 		srv := &http.Server{
 			Handler:     grpcHandlerFunc(gs, ph),
+			
 			ReadTimeout: 5 * time.Minute,
 			ErrorLog:    defaultLog.New(ioutil.Discard, "", 0), // do not log user error
 		}

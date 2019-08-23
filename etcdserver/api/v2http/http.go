@@ -19,7 +19,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
+	//"fmt"
 	"github.com/coreos/etcd/etcdserver/api/etcdhttp"
 	"github.com/coreos/etcd/etcdserver/api/v2http/httptypes"
 	"github.com/coreos/etcd/etcdserver/auth"
@@ -69,6 +69,7 @@ func allowMethod(w http.ResponseWriter, m string, ms ...string) bool {
 func requestLogger(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		plog.Debugf("[%s] %s remote:%s", r.Method, r.RequestURI, r.RemoteAddr)
+		//fmt.Print("etcdserver/api/v2http http.go servehttp\n")
 		handler.ServeHTTP(w, r)
 	})
 }

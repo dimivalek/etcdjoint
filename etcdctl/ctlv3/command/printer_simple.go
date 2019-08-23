@@ -93,11 +93,6 @@ func (p *simplePrinter) KeepAlive(resp v3.LeaseKeepAliveResponse) {
 }
 
 func (s *simplePrinter) TimeToLive(resp v3.LeaseTimeToLiveResponse, keys bool) {
-	if resp.GrantedTTL == 0 && resp.TTL == -1 {
-		fmt.Printf("lease %016x already expired\n", resp.ID)
-		return
-	}
-
 	txt := fmt.Sprintf("lease %016x granted with TTL(%ds), remaining(%ds)", resp.ID, resp.GrantedTTL, resp.TTL)
 	if keys {
 		ks := make([]string, len(resp.Keys))
@@ -125,11 +120,19 @@ func (s *simplePrinter) Alarm(resp v3.AlarmResponse) {
 func (s *simplePrinter) MemberAdd(r v3.MemberAddResponse) {
 	fmt.Printf("Member %16x added to cluster %16x\n", r.Member.ID, r.Header.ClusterId)
 }
-
+//////////////////
+func (s *simplePrinter) LearnerAdd(r v3.LearnerAddResponse) {
+	fmt.Printf("Learner %16x added to cluster %16x\n", r.Learner.ID, r.Header.ClusterId)
+}
+func (s *simplePrinter) Reconfiguration(r v3.ReconfigurationResponse) {
+	fmt.Printf("Configuration changed to %16x\n", r.ConfIDs)
+}
 func (s *simplePrinter) MemberRemove(id uint64, r v3.MemberRemoveResponse) {
 	fmt.Printf("Member %16x removed from cluster %16x\n", id, r.Header.ClusterId)
 }
-
+func (s *simplePrinter) LearnerRemove(id uint64, r v3.LearnerRemoveResponse) {
+	fmt.Printf("Learner %16x removed from cluster %16x\n", id, r.Header.ClusterId)
+}
 func (s *simplePrinter) MemberUpdate(id uint64, r v3.MemberUpdateResponse) {
 	fmt.Printf("Member %16x updated in cluster %16x\n", id, r.Header.ClusterId)
 }

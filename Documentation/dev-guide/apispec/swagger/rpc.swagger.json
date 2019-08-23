@@ -474,6 +474,60 @@
         }
       }
     },
+    "/v3beta/cluster/learner/add": {
+      "post": {
+        "tags": [
+          "Cluster"
+        ],
+        "summary": "LearnerAdd adds a member into the cluster.",
+        "operationId": "LearnerAdd",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/etcdserverpbLearnerAddRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "(empty)",
+            "schema": {
+              "$ref": "#/definitions/etcdserverpbLearnerAddResponse"
+            }
+          }
+        }
+      }
+    },
+    "/v3beta/cluster/reconfiguration": {
+      "post": {
+        "tags": [
+          "Cluster"
+        ],
+        "summary": "Reconfiguration changes configuration of the cluster.",
+        "operationId": "Reconfiguration",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/etcdserverpbReconfigurationRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "(empty)",
+            "schema": {
+              "$ref": "#/definitions/etcdserverpbReconfigurationResponse"
+            }
+          }
+        }
+      }
+    },
     "/v3beta/cluster/member/list": {
       "post": {
         "tags": [

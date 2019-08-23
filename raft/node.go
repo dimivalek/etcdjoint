@@ -17,7 +17,6 @@ package raft
 import (
 	"context"
 	"errors"
-
 	pb "github.com/coreos/etcd/raft/raftpb"
 )
 
@@ -123,6 +122,7 @@ type Node interface {
 	// Application needs to call ApplyConfChange when applying EntryConfChange type entry.
 	ProposeConfChange(ctx context.Context, cc pb.ConfChange) error
 	// Step advances the state machine using the given message. ctx.Err() will be returned, if any.
+	ProposeReConfChange(ctx context.Context, cc pb.ConfChange) error
 	Step(ctx context.Context, msg pb.Message) error
 
 	// Ready returns a channel that returns the current point-in-time state.
@@ -147,7 +147,7 @@ type Node interface {
 	// in snapshots. Will never return nil; it returns a pointer only
 	// to match MemoryStorage.Compact.
 	ApplyConfChange(cc pb.ConfChange) *pb.ConfState
-
+	ApplyReConfChange(cc pb.ConfChange) *pb.ConfState
 	// TransferLeadership attempts to transfer leadership to the given transferee.
 	TransferLeadership(ctx context.Context, lead, transferee uint64)
 
@@ -174,24 +174,57 @@ type Peer struct {
 
 // StartNode returns a new Node given configuration and a list of raft peers.
 // It appends a ConfChangeAddNode entry for each given peer to the initial log.
-func StartNode(c *Config, peers []Peer) Node {
-	r := newRaft(c)
-	// become the follower at term 1 and apply initial configuration
-	// entries of term 1
-	r.becomeFollower(1, None)
-	for _, peer := range peers {
-		cc := pb.ConfChange{Type: pb.ConfChangeAddNode, NodeID: peer.ID, Context: peer.Context}
-		d, err := cc.Marshal()
-		if err != nil {
-			panic("unexpected marshal error")
+func StartNode(c *Config, peers []Peer, islearner bool) Node {
+	//r := newRaft(c, islearner)
+
+/********** *******************/
+	if islearner{
+		r := newRaft2(c, islearner)
+		// become the learner at term 1 and apply initial configuration
+		// entries of term 1
+		r.becomeLearner(1,None)
+		for _, peer := range peers {
+			cc := pb.ConfChange{Type: pb.ConfChangeAddLearnerNode, NodeID: peer.ID, Context: peer.Context}
+			d, err := cc.Marshal()
+			if err != nil {
+				panic("unexpected marshal error")
+			}
+			e := pb.Entry{Type: pb.EntryConfChange, Term: 1, Index: r.raftLog.lastIndex() + 1, Data: d}
+			r.raftLog.append(e)
 		}
-		e := pb.Entry{Type: pb.EntryConfChange, Term: 1, Index: r.raftLog.lastIndex() + 1, Data: d}
-		r.raftLog.append(e)
+		r.raftLog.committed = r.raftLog.lastIndex()
+		for _, peer := range peers {
+			r.addLearner(peer.ID)
+		}
+		n := newNode()
+		n.logger = c.Logger
+		go n.run(r)
+		return &n
+	}else{
+		r := newRaft(c)
+		r.becomeFollower(1, None)
+		for _, peer := range peers {
+			cc := pb.ConfChange{Type: pb.ConfChangeAddNode, NodeID: peer.ID, Context: peer.Context}
+			d, err := cc.Marshal()
+			if err != nil {
+				panic("unexpected marshal error")
+			}
+			e := pb.Entry{Type: pb.EntryConfChange, Term: 1, Index: r.raftLog.lastIndex() + 1, Data: d}
+			r.raftLog.append(e)
+		}
+		r.raftLog.committed = r.raftLog.lastIndex()
+		for _, peer := range peers {
+			r.addNode(peer.ID)
+		}
+		n := newNode()
+		n.logger = c.Logger
+		go n.run(r)
+		return &n
 	}
 	// Mark these initial entries as committed.
 	// TODO(bdarnell): These entries are still unstable; do we need to preserve
 	// the invariant that committed < unstable?
-	r.raftLog.committed = r.raftLog.lastIndex()
+	
 	// Now apply them, mainly so that the application can call Campaign
 	// immediately after StartNode in tests. Note that these nodes will
 	// be added to raft twice: here and when the application's Ready
@@ -201,14 +234,9 @@ func StartNode(c *Config, peers []Peer) Node {
 	// entries since they have already been committed).
 	// We do not set raftLog.applied so the application will be able
 	// to observe all conf changes via Ready.CommittedEntries.
-	for _, peer := range peers {
-		r.addNode(peer.ID)
-	}
-
-	n := newNode()
-	n.logger = c.Logger
-	go n.run(r)
-	return &n
+	
+	
+	//return &n
 }
 
 // RestartNode is similar to StartNode but does not take a list of peers.
@@ -229,6 +257,7 @@ type node struct {
 	propc      chan pb.Message
 	recvc      chan pb.Message
 	confc      chan pb.ConfChange
+	//rconfc	   chan pb.ReConfChange
 	confstatec chan pb.ConfState
 	readyc     chan Ready
 	advancec   chan struct{}
@@ -245,6 +274,7 @@ func newNode() node {
 		propc:      make(chan pb.Message),
 		recvc:      make(chan pb.Message),
 		confc:      make(chan pb.ConfChange),
+		//rconfc:     make(chan pb.ReConfChange),
 		confstatec: make(chan pb.ConfState),
 		readyc:     make(chan Ready),
 		advancec:   make(chan struct{}),
@@ -331,6 +361,7 @@ func (n *node) run(r *raft) {
 				}
 				break
 			}
+			
 			switch cc.Type {
 			case pb.ConfChangeAddNode:
 				r.addNode(cc.NodeID)
@@ -343,8 +374,18 @@ func (n *node) run(r *raft) {
 					propc = nil
 				}
 				r.removeNode(cc.NodeID)
+			case pb.ConfChangeRemoveLearner:
+				// block incoming proposal when local node is
+				// removed
+				if cc.NodeID == r.id {
+					propc = nil
+				}
+				r.removeNode(cc.NodeID)
 			case pb.ConfChangeUpdateNode:
 				r.resetPendingConf()
+			case pb.Reconfiguration:
+				//nothing yet
+				
 			default:
 				panic("unexpected conf type")
 			}
@@ -352,6 +393,27 @@ func (n *node) run(r *raft) {
 			case n.confstatec <- pb.ConfState{Nodes: r.nodes()}:
 			case <-n.done:
 			}
+		/*case cc := <-n.rconfc:
+			if cc.ConfIDs == nil {
+				r.resetPendingConf()
+				select {
+				case n.confstatec <- pb.ConfState{Nodes: r.nodes()}:
+				case <-n.done:
+				}
+				break
+			}
+			//r.Step(m)
+			switch cc.Type {
+			case pb.Reconfiguration:
+				r.setNewConf(cc.ConfIDs)
+				
+			default:
+				panic("unexpected conf type")
+			}
+			select {
+			case n.confstatec <- pb.ConfState{Nodes: r.nodes()}:
+			case <-n.done:
+			}*/
 		case <-n.tickc:
 			r.tick()
 		case readyc <- rd:
@@ -426,11 +488,19 @@ func (n *node) ProposeConfChange(ctx context.Context, cc pb.ConfChange) error {
 	return n.Step(ctx, pb.Message{Type: pb.MsgProp, Entries: []pb.Entry{{Type: pb.EntryConfChange, Data: data}}})
 }
 
+func (n *node) ProposeReConfChange(ctx context.Context, cc pb.ConfChange) error {
+	data, err := cc.Marshal()
+	if err != nil {
+		return err
+	}
+	return n.Step(ctx, pb.Message{Type: pb.MsgPropRec, Entries: []pb.Entry{{Type: pb.EntryReConfChange, Data: data}}, ConfIDs: cc.ConfIDs})
+}
 // Step advances the state machine using msgs. The ctx.Err() will be returned,
 // if any.
 func (n *node) step(ctx context.Context, m pb.Message) error {
 	ch := n.recvc
-	if m.Type == pb.MsgProp {
+
+	if m.Type == pb.MsgProp || m.Type == pb.MsgPropRec {
 		ch = n.propc
 	}
 
@@ -457,6 +527,20 @@ func (n *node) ApplyConfChange(cc pb.ConfChange) *pb.ConfState {
 	var cs pb.ConfState
 	select {
 	case n.confc <- cc:
+	case <-n.done:
+	}
+	select {
+	case cs = <-n.confstatec:
+	case <-n.done:
+	}
+	return &cs
+}
+
+func (n *node) ApplyReConfChange(cc pb.ConfChange) *pb.ConfState {
+
+	var cs pb.ConfState
+	select {
+	case n.confc <- cc:	
 	case <-n.done:
 	}
 	select {

@@ -80,6 +80,8 @@ func init() {
 		command.NewVersionCommand(),
 		command.NewLeaseCommand(),
 		command.NewMemberCommand(),
+		command.NewLearnerCommand(),
+		command.NewConfigurationCommand(),
 		command.NewSnapshotCommand(),
 		command.NewMakeMirrorCommand(),
 		command.NewMigrateCommand(),

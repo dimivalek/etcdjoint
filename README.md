@@ -9,7 +9,7 @@ This is the repository of a modified **version 3.3.0-rc.0** of Etcd distributed 
 Most of the code changes, additions and modifications refer to joint consensus algorithm implementation and mainly took place in etcd/raft package and files such as etcd/raft/raft.go and etcd/raft/log.go.
 
 ## Useful links:
-###Some links that will help code comprehension
+ Some links that will help code comprehension <br/>
  [Raft]: https://raft.github.io/ <br/>
  [Raft paper]: https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf <br/>
  [Raft thesis]: https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf <br/>

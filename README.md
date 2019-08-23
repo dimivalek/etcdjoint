@@ -10,8 +10,8 @@ Most of the code changes, additions and modifications refer to joint consensus a
 
 ## Useful links:
 ###Some links that will help code comprehension
-- [Raft]: https://raft.github.io/
-- [Raft paper]: https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf
-- [Raft thesis]: https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf
-- [Etcd original repository]: https://github.com/etcd-io/etcd
-- [MSc thesis of Dimitrios Valekardas]: http://olympias.lib.uoi.gr/jspui/handle/123456789/29259
+ [Raft]: https://raft.github.io/ <br/>
+ [Raft paper]: https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf <br/>
+ [Raft thesis]: https://web.stanford.edu/~ouster/cgi-bin/papers/OngaroPhD.pdf <br/>
+ [Etcd original repository]: https://github.com/etcd-io/etcd <br/>
+ [MSc thesis of Dimitrios Valekardas]: http://olympias.lib.uoi.gr/jspui/handle/123456789/29259 <br/>
